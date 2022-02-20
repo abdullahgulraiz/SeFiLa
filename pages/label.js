@@ -127,7 +127,7 @@ export default function Label() {
     if (step === 1) {
         stepComponent = <GenerateDS setStep={setStep} setAllFindings={setAllFindings} />;
     } else if (step === 2) {
-        stepComponent = <LabelDS setStep={setStep} allFindings={allFindings} />;
+        stepComponent = <LabelDS allFindings={allFindings} />;
     }
     return (
         <div className={"mt-5"}>
@@ -204,29 +204,63 @@ const LabelDS = (props) => {
     // --- Functions ---
     const handleMoveFinding = (isAddOperation, id) => {
         if (isAddOperation) {
+            // add finding to the current collection
             setCurrentCollection({...currentCollection, [id]: allFindings[id]});
+            // remove finding from all findings
             const {[id]: removedFinding, ...updatedFindings} = allFindings;
             setAllFindings(updatedFindings);
         } else {
+            // add finding to all findings
             setAllFindings({...allFindings, [id]: currentCollection[id]});
+            // remove finding from current collection
             const {[id]: removedFinding, ...updatedCurrentCollection} = currentCollection;
             setCurrentCollection(updatedCurrentCollection);
         }
     };
     const handleSaveCollection = () => {
+        // add new collection with id next to the id of total existing saved collections
         const latestIndex = Object.keys(savedCollections).length;
         setSavedCollections({...savedCollections, [latestIndex]: currentCollection});
         setCurrentCollection({});
     };
+    const updateSavedCollectionIds = (savedCollection) => {
+        // re-assign numerical Ids of saved collections and return the updated object
+        let newSavedCollectionId = 0, updatedKeySavedCollection = {};
+        for (const key of Object.keys(savedCollection)) {
+            updatedKeySavedCollection[newSavedCollectionId++] = savedCollection[key];
+        }
+        return updatedKeySavedCollection;
+    }
     const handleEditCollection = (id) => {
         // prevent current collection from being lost
-        const tempCurrentCollection = currentCollection;
-        setAllFindings({...allFindings, tempCurrentCollection});
+        setAllFindings({...allFindings, ...currentCollection});
         // clear and populate current collection with collection being edited
         setCurrentCollection(savedCollections[id]);
         // remove entry from saved collections list
-        const {[id]: removedSavedCollection, ...updatedSavedCollection} = savedCollections;
+        let {[id]: removedSavedCollection, ...updatedSavedCollection} = savedCollections;
+        // update Ids of saved collections
+        updatedSavedCollection = updateSavedCollectionIds(updatedSavedCollection);
         setSavedCollections(updatedSavedCollection);
+    };
+    const handleDeleteCollection = (id) => {
+        // save all findings in the original pool of findings
+        setAllFindings({...allFindings, ...savedCollections[id]});
+        // remove entry from saved collections list
+        let {[id]: removedSavedCollection, ...updatedSavedCollection} = savedCollections;
+        // update Ids of saved collections
+        updatedSavedCollection = updateSavedCollectionIds(updatedSavedCollection);
+        setSavedCollections(updatedSavedCollection);
+    };
+    const handleDownloadCollections = () => {
+        // dump data into a string
+        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(savedCollections))}`;
+        // create temporary link element to enable download
+        const link = document.createElement("a");
+        link.href = jsonString;
+        link.download = "labeled-dataset.json";
+        link.click();
+        // remove temporary link element
+        link.remove();
     };
     return (
         <>
@@ -321,7 +355,7 @@ const LabelDS = (props) => {
                     <tr>
                         <th>ID</th>
                         <th># Findings</th>
-                        <th>Actions</th>
+                        <th></th>
                     </tr>
                     </thead>
                     <tbody>
@@ -332,7 +366,7 @@ const LabelDS = (props) => {
                                 <td className={"col-md-5"}>{Object.keys(collection).length}</td>
                                 <td className={"col-md-1"}>
                                     <Button variant={"primary"} onClick={() => handleEditCollection(id)}>✎</Button>{' '}
-                                    <Button variant={"danger"}>🗑</Button>
+                                    <Button variant={"danger"} onClick={() => handleDeleteCollection(id)}>🗑</Button>
                                 </td>
                             </tr>
                         )
@@ -348,7 +382,7 @@ const LabelDS = (props) => {
                 </Table>
             </Row>
             {Object.keys(savedCollections).length > 0 && <Row className={"mt-3 col-md-4 offset-4"}>
-                <Button variant="success">Download dataset</Button>
+                <Button variant="success" onClick={() => handleDownloadCollections()}>Download dataset</Button>
             </Row>}
         </>
     )
