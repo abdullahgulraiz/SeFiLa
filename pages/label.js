@@ -6,9 +6,25 @@ import Button from 'react-bootstrap/Button';
 import Table from 'react-bootstrap/Table';
 
 export default function Label() {
-    const [step, setStep] = useState(2);
-    const [allFindings, setAllFindings] = useState({
-        1: {
+    const [step, setStep] = useState(1);
+    const [allFindings, setAllFindings] = useState({});
+    let stepComponent;
+    if (step === 1) {
+        stepComponent = <GenerateDS setStep={setStep} setAllFindings={setAllFindings} />;
+    } else if (step === 2) {
+        stepComponent = <LabelDS allFindings={allFindings} />;
+    }
+    return (
+        <div className={"mt-5"}>
+            {stepComponent}
+        </div>
+    )
+}
+
+const GenerateDS = (props) => {
+    // --- State variables ---
+    const [processedFindings, setProcessedFindings] = useState({
+        0: {
             "VulnerabilityID":
                 "CVE-2011-3374",
             "PkgName":
@@ -65,7 +81,7 @@ export default function Label() {
             "LastModifiedDate":
                 "2021-02-09T16:08:00Z"
         },
-        2: {
+        1: {
             "VulnerabilityID":
                 "CVE-2011-3374",
             "PkgName":
@@ -123,43 +139,107 @@ export default function Label() {
                 "2021-02-09T16:08:00Z"
         }
     });
-    let stepComponent;
-    if (step === 1) {
-        stepComponent = <GenerateDS setStep={setStep} setAllFindings={setAllFindings} />;
-    } else if (step === 2) {
-        stepComponent = <LabelDS allFindings={allFindings} />;
-    }
-    return (
-        <div className={"mt-5"}>
-            {stepComponent}
-        </div>
-    )
-}
+    const [findingFilesData, setFindingFilesData] = useState([]);
+    const [formFields, setFormFields] = useState({'file': null, 'tool': "-1"});
+    const tools = {
+        "trivy": {
+            "name": "Trivy",
+            "processingFunction": (data) => {
+                const fileReader = new FileReader();
+                fileReader.onload = (e) => {
+                    const parsedData = JSON.parse(e.target.result);
+                    let startIndex = Object.keys(processedFindings).length;
+                    let findingsTemp = {},
+                        findingFilesDataTemp = {
+                            "tool": "trivy",
+                            "startIndex": startIndex
+                        };
+                    for (const target of Object.values(parsedData)) {
+                        for (const vulnerability of Object.values(target["Vulnerabilities"])) {
+                            findingsTemp[startIndex++] = vulnerability;
+                        }
+                    }
+                    findingFilesDataTemp['endIndex'] = startIndex;
+                    setProcessedFindings({
+                        ...processedFindings,
+                        ...findingsTemp
+                    });
+                    setFindingFilesData([...findingFilesData, findingFilesDataTemp]);
+                };
+                fileReader.readAsText(data);
+            },
+        },
+        "bandit": {
+            "name": "Bandit",
+            "processingFunction": (data) => {
+                console.log("This data is processed by Bandit function");
+            },
+        },
+        "anchore": {
+            "name": "Anchore",
+            "processingFunction": (data) => {
+                console.log("This data is processed by Anchore function");
+            },
+        },
+    };
 
-const GenerateDS = (props) => {
-    const [fileNames, setFileNames] = useState(['trivy.json']);
+    // --- Functions ---
+    const isFormValid = () => {
+        // check if a valid tool and valid file are selected
+        return (tools.hasOwnProperty(formFields.tool) && formFields.file !== undefined);
+    };
+    const handleUploadForm = (event) => {
+        // prevent form from submitting to server
+        event.preventDefault();
+        // ensure a valid tool and valid file are selected
+        if (isFormValid()) {
+            // call processing function defined for the tool on report file
+            tools[formFields.tool].processingFunction(formFields.file);
+        }
+        // reset form
+        setFormFields({...formFields, 'tool': "-1"});
+    };
+    const handleDeleteReport = (id) => {
+        // TODO: implement. NOTE: consider starting index in processedFindings which depends on length of entries.
+        //  Use information from objects in findingFilesData state variable
+        console.log("Deleting entry ", id);
+    };
+    const handleNextStep = () => {
+        // save processed findings for the next step
+        props.setAllFindings(processedFindings);
+        // proceed to the next step
+        props.setStep(2);
+    };
+
+    // --- Rendered component ---
     return (
         <>
             <h1>Generate Dataset</h1>
             <Row className={"mt-3"}>
                 <h3>Upload</h3>
-                <Form>
+                <Form onSubmit={handleUploadForm}>
                     <Row className="mb-3">
-                        <Form.Group as={Col} controlId="formGridEmail">
+                        <Form.Group as={Col} controlId="formToolFile">
                             <Form.Label>Report file</Form.Label>
-                            <Form.Control type="file" />
+                            <Form.Control
+                                type="file"
+                                onChange={(e) => {setFormFields({...formFields, 'file': e.target.files[0]})}}/>
                         </Form.Group>
-                        <Form.Group as={Col} controlId="formGridPassword">
+                        <Form.Group as={Col} controlId="formToolType">
                             <Form.Label>Tool</Form.Label>
-                            <Form.Select aria-label="Default select example">
-                                <option value="1">---</option>
-                                <option value="2">Trivy</option>
-                                <option value="3">Bandit</option>
-                                <option value="3">Anchore</option>
+                            <Form.Select
+                                onChange={(e) => {setFormFields({...formFields, 'tool': e.target.value})}}
+                                value={formFields.tool}>
+                                <option value="-1">---</option>
+                                {Object.entries(tools).map(([tool, toolObj]) => {
+                                    return (
+                                        <option value={tool}>{toolObj.name}</option>
+                                    )
+                                })}
                             </Form.Select>
                         </Form.Group>
                     </Row>
-                    <Button type="submit">Upload</Button>
+                    <Button type="submit" disabled={!isFormValid()}>Upload</Button>
                 </Form>
             </Row>
             <Row className={"mt-4"}>
@@ -168,35 +248,41 @@ const GenerateDS = (props) => {
                     <thead>
                     <tr>
                         <th>#</th>
-                        <th>Filename</th>
                         <th>Tool</th>
-                        <th>Actions</th>
+                        <th># of Findings</th>
+                        <th></th>
                     </tr>
                     </thead>
                     <tbody>
-                    <tr>
-                        <td>1</td>
-                        <td>trivy.json</td>
-                        <td>Trivy</td>
-                        <td>Delete</td>
-                    </tr>
-                    <tr>
-                        <td>2</td>
-                        <td>bandit_small.xml</td>
-                        <td>Bandit</td>
-                        <td>Delete</td>
-                    </tr>
+                    {findingFilesData.length > 0 && findingFilesData.map((data, idx) => {
+                        return (
+                            <tr key={idx}>
+                                <td className={"col-md-1"}>{idx + 1}</td>
+                                <td className={"col-md-5"}>{tools[data.tool].name}</td>
+                                <td className={"col-md-5"}>{data.endIndex - data.startIndex + 1}</td>
+                                <td className={"col-md-1 text-center"}>
+                                    <Button onClick={() => {handleDeleteReport(idx)}} variant={"danger"}>🗑</Button>
+                                </td>
+                            </tr>
+                        )
+                    })}
+                    {findingFilesData.length === 0 &&
+                        <tr>
+                            <td colSpan={4} className={"text-center"}>No reports yet.</td>
+                        </tr>
+                    }
                     </tbody>
                 </Table>
             </Row>
-            {fileNames.length > 0 && <Row className={"mt-3 col-md-4 offset-4"}>
-                <Button variant="success" onClick={() => props.setStep(2)}>Next step</Button>
+            {Object.keys(processedFindings).length > 0 && <Row className={"mt-3 col-md-4 offset-4"}>
+                <Button variant="success" onClick={handleNextStep}>Next step</Button>
             </Row>}
         </>
     )
 }
 
 const LabelDS = (props) => {
+    // --- State variables ---
     const [savedCollections, setSavedCollections] = useState({});
     const [currentCollection, setCurrentCollection] = useState({});
     const [allFindings, setAllFindings] = useState(props.allFindings);
@@ -262,6 +348,8 @@ const LabelDS = (props) => {
         // remove temporary link element
         link.remove();
     };
+
+    // --- Rendered component ---
     return (
         <>
             <h1>Label Dataset</h1>
@@ -304,7 +392,7 @@ const LabelDS = (props) => {
                         </tbody>
                     </Table>
                     {Object.keys(currentCollection).length > 0 &&
-                        <Button variant={"primary"} onClick={() => {handleSaveCollection()}}>Save collection</Button>
+                        <Button variant={"primary"} onClick={handleSaveCollection}>Save collection</Button>
                     }
                 </Col>
                 <Col className={"md-6"}>
@@ -382,7 +470,7 @@ const LabelDS = (props) => {
                 </Table>
             </Row>
             {Object.keys(savedCollections).length > 0 && <Row className={"mt-3 col-md-4 offset-4"}>
-                <Button variant="success" onClick={() => handleDownloadCollections()}>Download dataset</Button>
+                <Button variant="success" onClick={handleDownloadCollections}>Download dataset</Button>
             </Row>}
         </>
     )
