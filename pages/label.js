@@ -230,10 +230,10 @@ const GenerateDS = (props) => {
                             <Form.Select
                                 onChange={(e) => {setFormFields({...formFields, 'tool': e.target.value})}}
                                 value={formFields.tool}>
-                                <option value="-1">---</option>
+                                <option key={"-1"} value="-1">---</option>
                                 {Object.entries(tools).map(([tool, toolObj]) => {
                                     return (
-                                        <option value={tool}>{toolObj.name}</option>
+                                        <option key={tool} value={tool}>{toolObj.name}</option>
                                     )
                                 })}
                             </Form.Select>
@@ -407,7 +407,7 @@ const LabelDS = (props) => {
                         <tbody>
                         {Object.entries(allFindings).map(([id, finding]) => {
                             return (
-                                <tr>
+                                <tr key={id}>
                                     <td>
                                         <Button
                                             onClick={() => {handleMoveFinding(true, id)}}
@@ -415,7 +415,7 @@ const LabelDS = (props) => {
                                             variant="secondary">←
                                         </Button>
                                     </td>
-                                    <td key={id}>
+                                    <td>
                                         {/*<pre>*/}
                                         {/*    <code>*/}
                                                 {JSON.stringify(finding, null, 2)}
