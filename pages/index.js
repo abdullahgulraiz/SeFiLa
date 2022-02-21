@@ -1,5 +1,6 @@
 import Head from 'next/head'
 import Image from 'next/image'
+import Link from 'next/link';
 import styles from '../styles/Home.module.css'
 
 export default function Home() {
@@ -20,10 +21,12 @@ export default function Home() {
         </p>
 
         <div className={styles.grid}>
-          <a href="/label" className={styles.card}>
-            <h2>Label &rarr;</h2>
-            <p>Collect findings from different security tools in one place.</p>
-          </a>
+          <Link href={"/label"}>
+            <a className={styles.card}>
+              <h2>Label &rarr;</h2>
+              <p>Collect findings from different security tools in one place.</p>
+            </a>
+          </Link>
 
           <a href="#" className={styles.card}>
             <h2>Evaluate &rarr;</h2>
@@ -39,7 +42,7 @@ export default function Home() {
           rel="noopener noreferrer"
         >
           <span className={styles.logo}>
-            <Image src="/github.png" width={72} height={16} />
+            <Image src="/github.png" alt={"GitHub"} width={72} height={16} />
           </span>
         </a>
       </footer>
