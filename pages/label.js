@@ -140,39 +140,39 @@ const GenerateDS = (props) => {
         }
     });
     const [findingFilesData, setFindingFilesData] = useState([]);
-    const [formFields, setFormFields] = useState({'file': null, 'tool': "-1"});
+    const [formFields, setFormFields] = useState({'file': undefined, 'tool': "-1"});
     const tools = {
         "trivy": {
             "name": "Trivy",
-            "processingFunction": (data) => {
-                const fileReader = new FileReader();
-                fileReader.onload = (e) => {
-                    const parsedData = JSON.parse(e.target.result);
-                    let startIndex = Object.keys(processedFindings).length;
-                    let findingsTemp = {},
-                        findingFilesDataTemp = {
-                            "tool": "trivy",
-                            "startIndex": startIndex
-                        };
-                    for (const target of Object.values(parsedData)) {
-                        for (const vulnerability of Object.values(target["Vulnerabilities"])) {
-                            findingsTemp[startIndex++] = vulnerability;
-                        }
+            "processingFunction": (data, startIndex) => {
+                const parsedData = JSON.parse(data);
+                let findingsTemp = {};
+                for (const target of Object.values(parsedData)) {
+                    for (const vulnerability of Object.values(target["Vulnerabilities"])) {
+                        findingsTemp[startIndex++] = vulnerability;
                     }
-                    findingFilesDataTemp['endIndex'] = startIndex;
-                    setProcessedFindings({
-                        ...processedFindings,
-                        ...findingsTemp
-                    });
-                    setFindingFilesData([...findingFilesData, findingFilesDataTemp]);
-                };
-                fileReader.readAsText(data);
+                }
+                return {
+                    "findingsTemp": findingsTemp,
+                    "endIndex": startIndex
+                }
             },
         },
         "bandit": {
             "name": "Bandit",
-            "processingFunction": (data) => {
-                console.log("This data is processed by Bandit function");
+            "processingFunction": (data, startIndex) => {
+                const parser = new DOMParser();
+                const parsedData = parser.parseFromString(data, "text/xml");
+                const findings = parsedData.getElementsByTagName("testcase");
+                const serializer = new XMLSerializer();
+                let findingsTemp = {};
+                for (const finding of findings){
+                    findingsTemp[startIndex++] = {"testcase": serializer.serializeToString(finding)};
+                }
+                return {
+                    "findingsTemp": findingsTemp,
+                    "endIndex": startIndex
+                }
             },
         },
         "anchore": {
@@ -188,13 +188,36 @@ const GenerateDS = (props) => {
         // check if a valid tool and valid file are selected
         return (tools.hasOwnProperty(formFields.tool) && formFields.file !== undefined);
     };
+    const processUploadedFile = (tool, file) => {
+        // file will be loaded in the background
+        const fileReader = new FileReader();
+        // define behavior of what's to be done once the file load
+        fileReader.onload = (e) => {
+            // start adding findings from after existing findings
+            let startIndex = Object.keys(processedFindings).length;
+            // get processed findings from the tool's specific processing function
+            const {findingsTemp, endIndex} = tools[tool].processingFunction(e.target.result, startIndex);
+            // append to all processed findings
+            setProcessedFindings({
+                ...processedFindings,
+                ...findingsTemp
+            });
+            // keep record of indexes for every report (for deletion and display)
+            setFindingFilesData([...findingFilesData, {
+                "tool": tool,
+                "startIndex": startIndex,
+                "endIndex": endIndex
+            }]);
+        };
+        // read file from upload input
+        fileReader.readAsText(file);
+    };
     const handleUploadForm = (event) => {
         // prevent form from submitting to server
         event.preventDefault();
-        // ensure a valid tool and valid file are selected
+        // ensure a valid tool and valid file are selected before processing
         if (isFormValid()) {
-            // call processing function defined for the tool on report file
-            tools[formFields.tool].processingFunction(formFields.file);
+            processUploadedFile(formFields.tool, formFields.file);
         }
         // reset form
         setFormFields({...formFields, 'tool': "-1"});
@@ -259,7 +282,7 @@ const GenerateDS = (props) => {
                             <tr key={idx}>
                                 <td className={"col-md-1"}>{idx + 1}</td>
                                 <td className={"col-md-5"}>{tools[data.tool].name}</td>
-                                <td className={"col-md-5"}>{data.endIndex - data.startIndex + 1}</td>
+                                <td className={"col-md-5"}>{data.endIndex - data.startIndex}</td>
                                 <td className={"col-md-1 text-center"}>
                                     <Button onClick={() => {handleDeleteReport(idx)}} variant={"danger"}>🗑</Button>
                                 </td>
