@@ -309,6 +309,9 @@ const LabelDS = (props) => {
     const [savedCollections, setSavedCollections] = useState({});
     const [currentCollection, setCurrentCollection] = useState({});
     const [allFindings, setAllFindings] = useState(props.allFindings);
+    const [settings, setSettings] = useState({
+       "prettyCode": false,
+    });
 
     // --- Functions ---
     const handleMoveFinding = (isAddOperation, id) => {
@@ -377,9 +380,19 @@ const LabelDS = (props) => {
         <>
             <h1>Label Dataset</h1>
             <Row className={"mt-3"}>
+                <Col>
+                    <Form.Check
+                        className={"float-end"} type={"switch"} id={"custom-switch"} label="Pretty code"
+                        onChange={(e) => {setSettings({...settings, prettyCode: !settings.prettyCode})}}
+                    />
+                </Col>
+            </Row>
+            <Row className={"mt-3"}>
                 <div className={"col-sm-6"}>
                     <h3>Current collection</h3>
-                    <Table className={"mt-3"} striped bordered hover>
+                    <p className={"mt-1"}>{Object.keys(currentCollection).length} findings</p>
+                    <div style={{"max-height": "500px", "overflow": "auto"}}>
+                        <Table className={"mt-0"} striped bordered hover>
                         <thead>
                         <tr>
                             <th>Findings</th>
@@ -391,11 +404,18 @@ const LabelDS = (props) => {
                             return (
                                 <tr key={id}>
                                     <td style={{"word-wrap": "break-word", "word-break": "break-word"}}>
-                                        <div className={"overflow-scroll"}>
-                                        {/*<pre>*/}
-                                            {JSON.stringify(finding, null, 2)}
-                                        {/*</pre>*/}
-                                        </div>
+                                        {settings.prettyCode &&
+                                            <pre>
+                                                <code>
+                                                    {JSON.stringify(finding, null, 2)}
+                                                </code>
+                                            </pre>
+                                        }
+                                        {!settings.prettyCode &&
+                                            <>
+                                                {JSON.stringify(finding, null, 2)}
+                                            </>
+                                        }
                                     </td>
                                     <td>
                                         <Button
@@ -416,13 +436,16 @@ const LabelDS = (props) => {
                         }
                         </tbody>
                     </Table>
+                    </div>
                     {Object.keys(currentCollection).length > 0 &&
-                        <Button variant={"primary"} onClick={handleSaveCollection}>Save collection</Button>
+                        <Button variant={"primary"} className={"mt-3"} onClick={handleSaveCollection}>Save collection</Button>
                     }
                 </div>
                 <div className={"col-sm-6"}>
                     <h3>All findings</h3>
-                    <Table className={"mt-3"} striped bordered hover>
+                    <p className={"mt-1"}>{Object.keys(allFindings).length} findings</p>
+                    <div style={{"max-height": "500px", "overflow": "auto"}}>
+                        <Table className={"mt-0"} striped bordered hover>
                         <thead>
                         <tr>
                             <th></th>
@@ -441,11 +464,18 @@ const LabelDS = (props) => {
                                         </Button>
                                     </td>
                                     <td style={{"word-wrap": "break-word", "word-break": "break-word"}}>
-                                        {/*<pre>*/}
-                                        {/*    <code>*/}
-                                                {JSON.stringify(finding, null, 2)}
-                                        {/*    </code>*/}
-                                        {/*</pre>*/}
+                                        {settings.prettyCode &&
+                                            <pre>
+                                                <code>
+                                                    {JSON.stringify(finding, null, 2)}
+                                                </code>
+                                            </pre>
+                                        }
+                                        {!settings.prettyCode &&
+                                            <>
+                                            {JSON.stringify(finding, null, 2)}
+                                            </>
+                                        }
                                     </td>
                                 </tr>
                             )
@@ -459,6 +489,7 @@ const LabelDS = (props) => {
                         }
                         </tbody>
                     </Table>
+                    </div>
                 </div>
             </Row>
             <Row className={"mt-4"}>
@@ -477,7 +508,7 @@ const LabelDS = (props) => {
                             <tr key={id}>
                                 <td className={"col-md-5"}>{id}</td>
                                 <td className={"col-md-5"}>{Object.keys(collection).length}</td>
-                                <td className={"col-md-1"}>
+                                <td className={"col-md-1 text-center"}>
                                     <Button variant={"primary"} onClick={() => handleEditCollection(id)}>✎</Button>{' '}
                                     <Button variant={"danger"} onClick={() => handleDeleteCollection(id)}>🗑</Button>
                                 </td>
@@ -494,7 +525,7 @@ const LabelDS = (props) => {
                     </tbody>
                 </Table>
             </Row>
-            {Object.keys(savedCollections).length > 0 && <Row className={"mt-3 col-md-4 offset-4"}>
+            {Object.keys(savedCollections).length > 0 && <Row className={"mt-3 mb-3 col-md-4 offset-4"}>
                 <Button variant="success" onClick={handleDownloadCollections}>Download dataset</Button>
             </Row>}
         </>
