@@ -377,9 +377,9 @@ const LabelDS = (props) => {
         <>
             <h1>Label Dataset</h1>
             <Row className={"mt-3"}>
-                <Col className={"md-6"}>
+                <div className={"col-sm-6"}>
                     <h3>Current collection</h3>
-                    <Table className={"mt-3"} striped bordered hover responsive>
+                    <Table className={"mt-3"} striped bordered hover>
                         <thead>
                         <tr>
                             <th>Findings</th>
@@ -390,10 +390,12 @@ const LabelDS = (props) => {
                         {Object.entries(currentCollection).map(([id, finding]) => {
                             return (
                                 <tr key={id}>
-                                    <td>
+                                    <td style={{"word-wrap": "break-word", "word-break": "break-word"}}>
+                                        <div className={"overflow-scroll"}>
                                         {/*<pre>*/}
                                             {JSON.stringify(finding, null, 2)}
                                         {/*</pre>*/}
+                                        </div>
                                     </td>
                                     <td>
                                         <Button
@@ -417,10 +419,10 @@ const LabelDS = (props) => {
                     {Object.keys(currentCollection).length > 0 &&
                         <Button variant={"primary"} onClick={handleSaveCollection}>Save collection</Button>
                     }
-                </Col>
-                <Col className={"md-6"}>
+                </div>
+                <div className={"col-sm-6"}>
                     <h3>All findings</h3>
-                    <Table className={"mt-3"} striped bordered hover responsive>
+                    <Table className={"mt-3"} striped bordered hover>
                         <thead>
                         <tr>
                             <th></th>
@@ -438,7 +440,7 @@ const LabelDS = (props) => {
                                             variant="secondary">←
                                         </Button>
                                     </td>
-                                    <td>
+                                    <td style={{"word-wrap": "break-word", "word-break": "break-word"}}>
                                         {/*<pre>*/}
                                         {/*    <code>*/}
                                                 {JSON.stringify(finding, null, 2)}
@@ -457,11 +459,11 @@ const LabelDS = (props) => {
                         }
                         </tbody>
                     </Table>
-                </Col>
+                </div>
             </Row>
             <Row className={"mt-4"}>
                 <h3>All collections</h3>
-                <Table className={"mt-3"} striped bordered hover>
+                <Table className={"mt-3 w-100"} striped bordered hover>
                     <thead>
                     <tr>
                         <th>ID</th>
