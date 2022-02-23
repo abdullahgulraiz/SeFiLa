@@ -4,6 +4,7 @@ import Col from 'react-bootstrap/Col';
 import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import Table from 'react-bootstrap/Table';
+import ButtonGroup from 'react-bootstrap/ButtonGroup';
 
 export default function Label() {
     const [step, setStep] = useState(1);
@@ -214,65 +215,101 @@ const GenerateDS = (props) => {
 }
 
 const LabelDS = (props) => {
+    // --- General constants ---
+    const allFindingsData = props.allFindings;
     // --- State variables ---
-    const [savedCollections, setSavedCollections] = useState({});
-    const [currentCollection, setCurrentCollection] = useState({});
-    const [allFindings, setAllFindings] = useState(props.allFindings);
+    const [savedCollections, setSavedCollections] = useState([]);
+    const [currentCollection, setCurrentCollection] = useState([]);
+    const [allFindings, setAllFindings] = useState(Object.keys(props.allFindings));
     const [settings, setSettings] = useState({
-       "prettyCode": false,
+        "prettyCode": true,
+        "selectedCurrentCollectionIdx": -1,
+        "selectedAllFindingsIdx": 0
     });
 
     // --- Functions ---
-    const handleMoveFinding = (isAddOperation, id) => {
+    const handleMoveFinding = (isAddOperation) => {
+        let idx;
         if (isAddOperation) {
-            // add finding to the current collection
-            setCurrentCollection({...currentCollection, [id]: allFindings[id]});
+            idx = settings.selectedAllFindingsIdx;
+            // don't proceed if no entries in all findings
+            if (idx <= -1) return;
+            // add findingId to the current collection
+            setCurrentCollection([...currentCollection, allFindings[idx]]);
             // remove finding from all findings
-            const {[id]: removedFinding, ...updatedFindings} = allFindings;
-            setAllFindings(updatedFindings);
+            const remainingFindings = allFindings.filter((findingId, findingIdIdx) => {return findingIdIdx !== idx});
+            setAllFindings(remainingFindings);
+            // determine next sane idx
+            if (idx >= remainingFindings.length) idx--;
+            // refresh both views
+            setSettings({
+                ...settings,
+                selectedCurrentCollectionIdx: settings.selectedCurrentCollectionIdx <= -1 ? 0 : settings.selectedCurrentCollectionIdx,
+                selectedAllFindingsIdx: idx
+            });
         } else {
-            // add finding to all findings
-            setAllFindings({...allFindings, [id]: currentCollection[id]});
+            idx = settings.selectedCurrentCollectionIdx;
+            // don't proceed if no entries in current collection
+            if (idx <= -1) return;
+            // add findingId to all findings
+            setAllFindings([...allFindings, currentCollection[idx]]);
             // remove finding from current collection
-            const {[id]: removedFinding, ...updatedCurrentCollection} = currentCollection;
-            setCurrentCollection(updatedCurrentCollection);
+            const remainingCurrentCollection = currentCollection.filter((findingId, findingIdIdx) => {return findingIdIdx !== idx});
+            setCurrentCollection(remainingCurrentCollection);
+            // determine next sane idx
+            if (idx >= remainingCurrentCollection.length) idx--;
+            // refresh both views
+            setSettings({
+                ...settings,
+                selectedAllFindingsIdx: settings.selectedAllFindingsIdx <= -1 ? 0 : settings.selectedAllFindingsIdx,
+                selectedCurrentCollectionIdx: idx
+            });
         }
     };
     const handleSaveCollection = () => {
         // add new collection with id next to the id of total existing saved collections
-        const latestIndex = Object.keys(savedCollections).length;
-        setSavedCollections({...savedCollections, [latestIndex]: currentCollection});
-        setCurrentCollection({});
+        setSavedCollections([
+            ...savedCollections,
+            {"name": "Sample", "collection": currentCollection}
+        ]);
+        // reset current collections
+        setCurrentCollection([]);
+        setSettings({
+            ...settings,
+            selectedCurrentCollectionIdx: -1
+        });
     };
-    const updateSavedCollectionIds = (savedCollection) => {
-        // re-assign numerical Ids of saved collections and return the updated object
-        let newSavedCollectionId = 0, updatedKeySavedCollection = {};
-        for (const key of Object.keys(savedCollection)) {
-            updatedKeySavedCollection[newSavedCollectionId++] = savedCollection[key];
-        }
-        return updatedKeySavedCollection;
-    }
-    const handleEditCollection = (id) => {
+    const handleEditCollection = (idx) => {
         // prevent current collection from being lost
-        setAllFindings({...allFindings, ...currentCollection});
+        setAllFindings([...allFindings, ...currentCollection]);
         // clear and populate current collection with collection being edited
-        setCurrentCollection(savedCollections[id]);
+        setCurrentCollection(savedCollections[idx].collection);
+        // refresh both views
+        setSettings({
+            ...settings,
+            selectedAllFindingsIdx: settings.selectedAllFindingsIdx <= -1 ? 0 : settings.selectedAllFindingsIdx,
+            selectedCurrentCollectionIdx: settings.selectedCurrentCollectionIdx <= -1 ? 0: settings.selectedCurrentCollectionIdx
+        });
         // remove entry from saved collections list
-        let {[id]: removedSavedCollection, ...updatedSavedCollection} = savedCollections;
-        // update Ids of saved collections
-        updatedSavedCollection = updateSavedCollectionIds(updatedSavedCollection);
-        setSavedCollections(updatedSavedCollection);
+        setSavedCollections(
+            savedCollections.filter((item, itemIdx) => {return idx !== itemIdx})
+        );
     };
-    const handleDeleteCollection = (id) => {
+    const handleDeleteCollection = (idx) => {
         // save all findings in the original pool of findings
-        setAllFindings({...allFindings, ...savedCollections[id]});
+        setAllFindings([...allFindings, ...savedCollections[idx].collection]);
+        // refresh view
+        setSettings({
+            ...settings,
+            selectedAllFindingsIdx: settings.selectedAllFindingsIdx <= -1 ? 0 : settings.selectedAllFindingsIdx
+        });
         // remove entry from saved collections list
-        let {[id]: removedSavedCollection, ...updatedSavedCollection} = savedCollections;
-        // update Ids of saved collections
-        updatedSavedCollection = updateSavedCollectionIds(updatedSavedCollection);
-        setSavedCollections(updatedSavedCollection);
+        setSavedCollections(
+            savedCollections.filter((item, itemIdx) => {return idx !== itemIdx})
+        );
     };
     const handleDownloadCollections = () => {
+        // TODO: adapt download to the changed approach of list instead of dict
         // dump data into a string
         const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(savedCollections))}`;
         // create temporary link element to enable download
@@ -283,6 +320,44 @@ const LabelDS = (props) => {
         // remove temporary link element
         link.remove();
     };
+    const getIndexCollection = (isAllFindings) => {
+        let index, collection;
+        if (isAllFindings) {
+            index = settings.selectedAllFindingsIdx;
+            collection = allFindings;
+        } else {
+            index = settings.selectedCurrentCollectionIdx;
+            collection = currentCollection;
+        }
+        return {index, collection};
+    };
+    const navigateCollection = (isAllFindings, isNext) => {
+        // function returns the next possible key for given collection based on available keys and desired operation
+        let {index, collection} = getIndexCollection(isAllFindings);
+        const tempIndex = isNext ? index + 1 : index - 1;
+        return (collection[tempIndex] !== undefined) ? tempIndex : index;
+    };
+    const isNavigationPossible = (isAllFindings, isNext) => {
+        let {index, collection} = getIndexCollection(isAllFindings);
+        if (index <= -1) return false;
+        return isNext ? index < (collection.length - 1) : index > 0;
+    };
+    const handleNavigateCollections = (isAllFindings, isNext) => {
+        // get next key for the collection based on current key and available keys
+        if (isAllFindings) {
+            // Navigating All Findings
+            setSettings({
+                ...settings,
+                selectedAllFindingsIdx: navigateCollection(isAllFindings, isNext)
+            });
+        } else {
+            // Navigating Current Collection
+            setSettings({
+                ...settings,
+                selectedCurrentCollectionIdx: navigateCollection(isAllFindings, isNext)
+            });
+        }
+    };
 
     // --- Rendered component ---
     return (
@@ -291,7 +366,7 @@ const LabelDS = (props) => {
             <Row className={"mt-3"}>
                 <Col>
                     <Form.Check
-                        className={"float-end"} type={"switch"} id={"custom-switch"} label="Pretty code"
+                        className={"float-end"} type={"switch"} id={"custom-switch"} label="Pretty code" defaultChecked={true}
                         onChange={(e) => {setSettings({...settings, prettyCode: !settings.prettyCode})}}
                     />
                 </Col>
@@ -299,44 +374,57 @@ const LabelDS = (props) => {
             <Row className={"mt-3"}>
                 <div className={"col-sm-6"}>
                     <h3>Current collection</h3>
-                    <p className={"mt-1"}>{Object.keys(currentCollection).length} findings</p>
+                    <Row>
+                        <Col>
+                            <p className={"mt-2"}>
+                                Total {currentCollection.length} finding(s)
+                                {currentCollection.length > 0 &&
+                                    <>
+                                        , current finding {currentCollection[settings.selectedCurrentCollectionIdx]}
+                                    </>
+                                }
+                            </p>
+                        </Col>
+                        <Col>
+                            <ButtonGroup aria-label="Navigate current collection" className={"float-end mb-3"}>
+                                <Button onClick={() => {handleNavigateCollections(false, false)}}
+                                        variant="secondary"
+                                        disabled={!isNavigationPossible(false, false)}
+                                >Previous</Button>
+                                <Button onClick={() => {handleNavigateCollections(false, true)}}
+                                        variant="secondary"
+                                        disabled={!isNavigationPossible(false, true)}
+                                >Next</Button>
+                            </ButtonGroup>
+                        </Col>
+                    </Row>
                     <div style={{"max-height": "500px", "overflow": "auto"}}>
                         <Table className={"mt-0"} striped bordered hover>
                         <thead>
                         <tr>
-                            <th>Findings</th>
-                            <th></th>
+                            <th>Finding</th>
                         </tr>
                         </thead>
                         <tbody>
-                        {Object.entries(currentCollection).map(([id, finding]) => {
-                            return (
-                                <tr key={id}>
-                                    <td style={{"word-wrap": "break-word", "word-break": "break-word"}}>
-                                        {settings.prettyCode &&
-                                            <pre>
-                                                <code>
-                                                    {JSON.stringify(finding, null, 2)}
-                                                </code>
-                                            </pre>
-                                        }
-                                        {!settings.prettyCode &&
-                                            <>
-                                                {JSON.stringify(finding, null, 2)}
-                                            </>
-                                        }
-                                    </td>
-                                    <td>
-                                        <Button
-                                            onClick={() => {handleMoveFinding(false, id)}}
-                                            size={"sm"}
-                                            variant="secondary">→
-                                        </Button>
-                                    </td>
-                                </tr>
-                            )
-                        })}
-                        {Object.keys(currentCollection).length === 0 &&
+                        {currentCollection.length > 0 &&
+                            <tr>
+                                <td style={{"word-wrap": "break-word", "word-break": "break-word"}}>
+                                    {settings.prettyCode &&
+                                        <pre>
+                                            <code>
+                                                {JSON.stringify(allFindingsData[currentCollection[settings.selectedCurrentCollectionIdx]], null, 2)}
+                                            </code>
+                                        </pre>
+                                    }
+                                    {!settings.prettyCode &&
+                                        <>
+                                            {JSON.stringify(allFindingsData[currentCollection[settings.selectedCurrentCollectionIdx]], null, 2)}
+                                        </>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        {currentCollection.length === 0 &&
                             <tr>
                                 <td colSpan={2} className={"text-center"}>
                                     No findings yet.
@@ -346,50 +434,76 @@ const LabelDS = (props) => {
                         </tbody>
                     </Table>
                     </div>
-                    {Object.keys(currentCollection).length > 0 &&
-                        <Button variant={"primary"} className={"mt-3"} onClick={handleSaveCollection}>Save collection</Button>
-                    }
+                    <Row className={"mt-3"}>
+                        <Col>
+                            {currentCollection.length > 0 &&
+                                <Button variant={"primary"} onClick={handleSaveCollection}>Save collection</Button>
+                            }
+                        </Col>
+                        <Col>
+                            <Button
+                                className={"float-end"}
+                                variant={"secondary"}
+                                onClick={() => {handleMoveFinding(false)}}
+                                disabled={currentCollection.length === 0}>
+                                Exclude finding →
+                            </Button>
+                        </Col>
+                    </Row>
                 </div>
                 <div className={"col-sm-6"}>
                     <h3>All findings</h3>
-                    <p className={"mt-1"}>{Object.keys(allFindings).length} findings</p>
+                    <Row>
+                        <Col>
+                            <p className={"mt-2"}>
+                                Total {allFindings.length} finding(s)
+                                {allFindings.length > 0 &&
+                                    <>
+                                        , current finding {allFindings[settings.selectedAllFindingsIdx]}
+                                    </>
+                                }
+                            </p>
+                        </Col>
+                        <Col>
+                            <ButtonGroup aria-label="Navigate all findings" className={"float-end mb-3"}>
+                                <Button onClick={() => {handleNavigateCollections(true, false)}}
+                                        variant="secondary"
+                                        disabled={!isNavigationPossible(true, false)}
+                                >Previous</Button>
+                                <Button onClick={() => {handleNavigateCollections(true, true)}}
+                                        variant="secondary"
+                                        disabled={!isNavigationPossible(true, true)}
+                                >Next</Button>
+                            </ButtonGroup>
+                        </Col>
+                    </Row>
                     <div style={{"max-height": "500px", "overflow": "auto"}}>
                         <Table className={"mt-0"} striped bordered hover>
                         <thead>
                         <tr>
-                            <th></th>
-                            <th>Findings</th>
+                            <th>Finding</th>
                         </tr>
                         </thead>
                         <tbody>
-                        {Object.entries(allFindings).map(([id, finding]) => {
-                            return (
-                                <tr key={id}>
-                                    <td>
-                                        <Button
-                                            onClick={() => {handleMoveFinding(true, id)}}
-                                            size={"sm"}
-                                            variant="secondary">←
-                                        </Button>
-                                    </td>
-                                    <td style={{"word-wrap": "break-word", "word-break": "break-word"}}>
-                                        {settings.prettyCode &&
-                                            <pre>
-                                                <code>
-                                                    {JSON.stringify(finding, null, 2)}
-                                                </code>
-                                            </pre>
-                                        }
-                                        {!settings.prettyCode &&
-                                            <>
-                                            {JSON.stringify(finding, null, 2)}
-                                            </>
-                                        }
-                                    </td>
-                                </tr>
-                            )
-                        })}
-                        {Object.keys(allFindings).length === 0 &&
+                        {allFindings.length > 0 &&
+                            <tr>
+                                <td style={{"word-wrap": "break-word", "word-break": "break-word"}}>
+                                    {settings.prettyCode &&
+                                        <pre>
+                                            <code>
+                                                {JSON.stringify(allFindingsData[allFindings[settings.selectedAllFindingsIdx]], null, 2)}
+                                            </code>
+                                        </pre>
+                                    }
+                                    {!settings.prettyCode &&
+                                        <>
+                                        {JSON.stringify(allFindingsData[allFindings[settings.selectedAllFindingsIdx]], null, 2)}
+                                        </>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        {allFindings.length === 0 &&
                             <tr>
                                 <td colSpan={2} className={"text-center"}>
                                     No more findings.
@@ -399,6 +513,16 @@ const LabelDS = (props) => {
                         </tbody>
                     </Table>
                     </div>
+                    <Row className={"mt-3"}>
+                        <Col>
+                            <Button
+                                variant={"secondary"}
+                                onClick={() => {handleMoveFinding(true)}}
+                                disabled={allFindings.length === 0}>
+                                ← Include finding
+                            </Button>
+                        </Col>
+                    </Row>
                 </div>
             </Row>
             <Row className={"mt-4"}>
@@ -407,24 +531,26 @@ const LabelDS = (props) => {
                     <thead>
                     <tr>
                         <th>ID</th>
+                        <th>Name</th>
                         <th># Findings</th>
                         <th></th>
                     </tr>
                     </thead>
                     <tbody>
-                    {Object.entries(savedCollections).map(([id, collection]) => {
+                    {savedCollections.map((collectionObj, idx) => {
                         return (
-                            <tr key={id}>
-                                <td className={"col-md-5"}>{id}</td>
-                                <td className={"col-md-5"}>{Object.keys(collection).length}</td>
+                            <tr key={idx}>
+                                <td className={"col-md-1"}>{idx}</td>
+                                <td className={"col-md-8"}>{collectionObj.name}</td>
+                                <td className={"col-md-2"}>{collectionObj.collection.length}</td>
                                 <td className={"col-md-1 text-center"}>
-                                    <Button variant={"primary"} onClick={() => handleEditCollection(id)}>✎</Button>{' '}
-                                    <Button variant={"danger"} onClick={() => handleDeleteCollection(id)}>🗑</Button>
+                                    <Button variant={"primary"} onClick={() => handleEditCollection(idx)}>✎</Button>{' '}
+                                    <Button variant={"danger"} onClick={() => handleDeleteCollection(idx)}>🗑</Button>
                                 </td>
                             </tr>
                         )
                     })}
-                    {Object.keys(savedCollections).length === 0 &&
+                    {savedCollections.length === 0 &&
                         <tr>
                             <td colSpan={3} className={"text-center"}>
                                 No collections yet.
@@ -434,7 +560,7 @@ const LabelDS = (props) => {
                     </tbody>
                 </Table>
             </Row>
-            {Object.keys(savedCollections).length > 0 && <Row className={"mt-3 mb-3 col-md-4 offset-4"}>
+            {savedCollections.length > 0 && <Row className={"mt-3 mb-3 col-md-4 offset-4"}>
                 <Button variant="success" onClick={handleDownloadCollections}>Download dataset</Button>
             </Row>}
         </>
