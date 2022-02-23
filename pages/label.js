@@ -224,7 +224,8 @@ const LabelDS = (props) => {
     const [settings, setSettings] = useState({
         "prettyCode": true,
         "selectedCurrentCollectionIdx": -1,
-        "selectedAllFindingsIdx": 0
+        "selectedAllFindingsIdx": 0,
+        "currentCollectionName": ""
     });
 
     // --- Functions ---
@@ -270,12 +271,13 @@ const LabelDS = (props) => {
         // add new collection with id next to the id of total existing saved collections
         setSavedCollections([
             ...savedCollections,
-            {"name": "Sample", "collection": currentCollection}
+            {"name": settings.currentCollectionName, "collection": currentCollection}
         ]);
         // reset current collections
         setCurrentCollection([]);
         setSettings({
             ...settings,
+            currentCollectionName: "",
             selectedCurrentCollectionIdx: -1
         });
     };
@@ -288,7 +290,8 @@ const LabelDS = (props) => {
         setSettings({
             ...settings,
             selectedAllFindingsIdx: settings.selectedAllFindingsIdx <= -1 ? 0 : settings.selectedAllFindingsIdx,
-            selectedCurrentCollectionIdx: settings.selectedCurrentCollectionIdx <= -1 ? 0: settings.selectedCurrentCollectionIdx
+            selectedCurrentCollectionIdx: settings.selectedCurrentCollectionIdx <= -1 ? 0: settings.selectedCurrentCollectionIdx,
+            currentCollectionName: savedCollections[idx].name
         });
         // remove entry from saved collections list
         setSavedCollections(
@@ -309,9 +312,21 @@ const LabelDS = (props) => {
         );
     };
     const handleDownloadCollections = () => {
-        // TODO: adapt download to the changed approach of list instead of dict
+        // format data in the required format
+        const finalDS = savedCollections.map((collectionObj, idx) => {
+           return {
+               id: idx,
+               name: collectionObj.name,
+               findings: collectionObj.collection.map((findingId, idx) => {
+                  return {
+                      id: idx,
+                      finding: allFindingsData[findingId]
+                  }
+               })
+           }
+        });
         // dump data into a string
-        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(savedCollections))}`;
+        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(finalDS))}`;
         // create temporary link element to enable download
         const link = document.createElement("a");
         link.href = jsonString;
@@ -435,12 +450,27 @@ const LabelDS = (props) => {
                     </Table>
                     </div>
                     <Row className={"mt-3"}>
-                        <Col>
+                        <Col className={"col-md-8"}>
                             {currentCollection.length > 0 &&
-                                <Button variant={"primary"} onClick={handleSaveCollection}>Save collection</Button>
+                                <Form onSubmit={(e) => {e.preventDefault()}}>
+                                    <Form.Group className="mb-3">
+                                        <Form.Control
+                                            type="text"
+                                            value={settings.currentCollectionName}
+                                            placeholder="Enter collection name"
+                                            onChange={e => setSettings({...settings, currentCollectionName: e.target.value})}/>
+                                        <Form.Text className="text-muted">
+                                            Give your collection a name.
+                                        </Form.Text>
+                                    </Form.Group>
+                                    <Button
+                                        variant={"primary"}
+                                        onClick={handleSaveCollection}
+                                        disabled={settings.currentCollectionName.length <= 0}>Save collection</Button>
+                                </Form>
                             }
                         </Col>
-                        <Col>
+                        <div className={"col-md-4"}>
                             <Button
                                 className={"float-end"}
                                 variant={"secondary"}
@@ -448,7 +478,7 @@ const LabelDS = (props) => {
                                 disabled={currentCollection.length === 0}>
                                 Exclude finding →
                             </Button>
-                        </Col>
+                        </div>
                     </Row>
                 </div>
                 <div className={"col-sm-6"}>
