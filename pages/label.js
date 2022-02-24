@@ -9,11 +9,13 @@ import ButtonGroup from 'react-bootstrap/ButtonGroup';
 export default function Label() {
     const [step, setStep] = useState(1);
     const [allFindings, setAllFindings] = useState({});
+    const [allFindingsMetadata, setAllFindingsMetaData] = useState({});
     let stepComponent;
     if (step === 1) {
-        stepComponent = <GenerateDS setStep={setStep} setAllFindings={setAllFindings} />;
+        stepComponent = <GenerateDS
+            setStep={setStep} setAllFindings={setAllFindings} setAllFindingsMetaData={setAllFindingsMetaData} />;
     } else if (step === 2) {
-        stepComponent = <LabelDS allFindings={allFindings} />;
+        stepComponent = <LabelDS allFindings={allFindings} allFindingsMetadata={allFindingsMetadata} />;
     }
     return (
         <div className={"mt-5"}>
@@ -116,7 +118,7 @@ const GenerateDS = (props) => {
             setFindingFilesData([...findingFilesData, {
                 "tool": tool,
                 "startIndex": startIndex,
-                "endIndex": endIndex
+                "endIndex": endIndex - 1
             }]);
         };
         // read file from upload input
@@ -140,6 +142,8 @@ const GenerateDS = (props) => {
     const handleNextStep = () => {
         // save processed findings for the next step
         props.setAllFindings(processedFindings);
+        // save meta-data for the next step
+        props.setAllFindingsMetaData(findingFilesData);
         // proceed to the next step
         props.setStep(2);
     };
@@ -192,7 +196,7 @@ const GenerateDS = (props) => {
                             <tr key={idx}>
                                 <td className={"col-md-1"}>{idx + 1}</td>
                                 <td className={"col-md-5"}>{tools[data.tool].name}</td>
-                                <td className={"col-md-5"}>{data.endIndex - data.startIndex}</td>
+                                <td className={"col-md-5"}>{data.endIndex - data.startIndex + 1}</td>
                                 <td className={"col-md-1 text-center"}>
                                     <Button onClick={() => {handleDeleteReport(idx)}} variant={"danger"}>🗑</Button>
                                 </td>
@@ -217,6 +221,7 @@ const GenerateDS = (props) => {
 const LabelDS = (props) => {
     // --- General constants ---
     const allFindingsData = props.allFindings;
+    const allFindingsMetaData = props.allFindingsMetadata;
     // --- State variables ---
     const [savedCollections, setSavedCollections] = useState([]);
     const [currentCollection, setCurrentCollection] = useState([]);
@@ -313,7 +318,7 @@ const LabelDS = (props) => {
     };
     const handleDownloadCollections = () => {
         // format data in the required format
-        const finalDS = savedCollections.map((collectionObj, idx) => {
+        const finalCollections = savedCollections.map((collectionObj, idx) => {
            return {
                id: idx,
                name: collectionObj.name,
@@ -325,6 +330,7 @@ const LabelDS = (props) => {
                })
            }
         });
+        const finalDS = {"metadata": allFindingsMetaData, "collections": finalCollections};
         // dump data into a string
         const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(finalDS))}`;
         // create temporary link element to enable download
