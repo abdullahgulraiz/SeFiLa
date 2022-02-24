@@ -317,9 +317,9 @@ const LabelDS = (props) => {
            return {
                id: idx,
                name: collectionObj.name,
-               findings: collectionObj.collection.map((findingId, idx) => {
+               findings: collectionObj.collection.map((findingId) => {
                   return {
-                      id: idx,
+                      id: findingId,
                       finding: allFindingsData[findingId]
                   }
                })
