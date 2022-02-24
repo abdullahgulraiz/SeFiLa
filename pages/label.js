@@ -9,7 +9,7 @@ import ButtonGroup from 'react-bootstrap/ButtonGroup';
 export default function Label() {
     const [step, setStep] = useState(1);
     const [allFindings, setAllFindings] = useState({});
-    const [allFindingsMetadata, setAllFindingsMetaData] = useState({});
+    const [allFindingsMetadata, setAllFindingsMetaData] = useState([]);
     let stepComponent;
     if (step === 1) {
         stepComponent = <GenerateDS
@@ -242,10 +242,10 @@ const LabelDS = (props) => {
             if (idx <= -1) return;
             // add findingId to the current collection
             setCurrentCollection([...currentCollection, allFindings[idx]]);
-            // remove finding from all findings
+            // remove findingId from all findings
             const remainingFindings = allFindings.filter((findingId, findingIdIdx) => {return findingIdIdx !== idx});
             setAllFindings(remainingFindings);
-            // determine next sane idx
+            // ensure that viewing index is not out of bounds
             if (idx >= remainingFindings.length) idx--;
             // refresh both views
             setSettings({
@@ -259,10 +259,10 @@ const LabelDS = (props) => {
             if (idx <= -1) return;
             // add findingId to all findings
             setAllFindings([...allFindings, currentCollection[idx]]);
-            // remove finding from current collection
+            // remove findingId from current collection
             const remainingCurrentCollection = currentCollection.filter((findingId, findingIdIdx) => {return findingIdIdx !== idx});
             setCurrentCollection(remainingCurrentCollection);
-            // determine next sane idx
+            // ensure that viewing index is not out of bounds
             if (idx >= remainingCurrentCollection.length) idx--;
             // refresh both views
             setSettings({
@@ -273,12 +273,12 @@ const LabelDS = (props) => {
         }
     };
     const handleSaveCollection = () => {
-        // add new collection with id next to the id of total existing saved collections
+        // append collection to list of already saved collections
         setSavedCollections([
             ...savedCollections,
             {"name": settings.currentCollectionName, "collection": currentCollection}
         ]);
-        // reset current collections
+        // reset current collections data and view
         setCurrentCollection([]);
         setSettings({
             ...settings,
@@ -304,9 +304,9 @@ const LabelDS = (props) => {
         );
     };
     const handleDeleteCollection = (idx) => {
-        // save all findings in the original pool of findings
+        // return findingIds in deleted collection back to the pool of all findingIds
         setAllFindings([...allFindings, ...savedCollections[idx].collection]);
-        // refresh view
+        // refresh all findings view
         setSettings({
             ...settings,
             selectedAllFindingsIdx: settings.selectedAllFindingsIdx <= -1 ? 0 : settings.selectedAllFindingsIdx
@@ -317,7 +317,7 @@ const LabelDS = (props) => {
         );
     };
     const handleDownloadCollections = () => {
-        // format data in the required format
+        // format collections data in the required format
         const finalCollections = savedCollections.map((collectionObj, idx) => {
            return {
                id: idx,
@@ -330,6 +330,7 @@ const LabelDS = (props) => {
                })
            }
         });
+        // add meta data and collection data to final report
         const finalDS = {"metadata": allFindingsMetaData, "collections": finalCollections};
         // dump data into a string
         const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(finalDS))}`;
@@ -342,6 +343,7 @@ const LabelDS = (props) => {
         link.remove();
     };
     const getIndexCollection = (isAllFindings) => {
+        // function to prevent redundancy when accessing a certain collection and its view index
         let index, collection;
         if (isAllFindings) {
             index = settings.selectedAllFindingsIdx;
@@ -353,18 +355,20 @@ const LabelDS = (props) => {
         return {index, collection};
     };
     const navigateCollection = (isAllFindings, isNext) => {
-        // function returns the next possible key for given collection based on available keys and desired operation
+        // function to return the next possible view index for given collection based on available keys and desired
+        // operation
         let {index, collection} = getIndexCollection(isAllFindings);
         const tempIndex = isNext ? index + 1 : index - 1;
         return (collection[tempIndex] !== undefined) ? tempIndex : index;
     };
     const isNavigationPossible = (isAllFindings, isNext) => {
+        // function to enable/disable Next/Previous buttons depending on possibility to navigate through a collection
         let {index, collection} = getIndexCollection(isAllFindings);
         if (index <= -1) return false;
         return isNext ? index < (collection.length - 1) : index > 0;
     };
     const handleNavigateCollections = (isAllFindings, isNext) => {
-        // get next key for the collection based on current key and available keys
+        // get next view index for the collection based on current index and number of items in collection
         if (isAllFindings) {
             // Navigating All Findings
             setSettings({
@@ -401,7 +405,7 @@ const LabelDS = (props) => {
                                 Total {currentCollection.length} finding(s)
                                 {currentCollection.length > 0 &&
                                     <>
-                                        , current finding {currentCollection[settings.selectedCurrentCollectionIdx]}
+                                        , current finding ID {currentCollection[settings.selectedCurrentCollectionIdx]}
                                     </>
                                 }
                             </p>
@@ -495,7 +499,7 @@ const LabelDS = (props) => {
                                 Total {allFindings.length} finding(s)
                                 {allFindings.length > 0 &&
                                     <>
-                                        , current finding {allFindings[settings.selectedAllFindingsIdx]}
+                                        , current finding ID {allFindings[settings.selectedAllFindingsIdx]}
                                     </>
                                 }
                             </p>
