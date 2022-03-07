@@ -93,6 +93,106 @@ const GenerateDS = (props) => {
                 }
             },
         },
+        "anchore": {
+            "name": "Anchore",
+            "processingFunction": (data, startIndex) => {
+                const parsedData = JSON.parse(data);
+                let findingsTemp = {};
+                for (const vulnerability of Object.values(parsedData["vulnerabilities"])) {
+                    findingsTemp[startIndex++] = vulnerability;
+                }
+                return {
+                    "findingsTemp": findingsTemp,
+                    "endIndex": startIndex
+                }
+            },
+        },
+        "codeql": {
+            "name": "CodeQL",
+            "processingFunction": (data, startIndex) => {
+                const parsedData = JSON.parse(data);
+                let findingsTemp = {};
+                for (const run of parsedData["runs"]) {
+                    for (const result of run["results"]) {
+                        findingsTemp[startIndex++] = result;
+                    }
+                }
+                return {
+                    "findingsTemp": findingsTemp,
+                    "endIndex": startIndex
+                }
+            },
+        },
+        "semgrep": {
+            "name": "Semgrep",
+            "processingFunction": (data, startIndex) => {
+                const parsedData = JSON.parse(data);
+                let findingsTemp = {};
+                for (const finding of parsedData) {
+                    findingsTemp[startIndex++] = finding;
+                }
+                return {
+                    "findingsTemp": findingsTemp,
+                    "endIndex": startIndex
+                }
+            },
+        },
+        "horusec": {
+            "name": "Horusec",
+            "processingFunction": (data, startIndex) => {
+                const parsedData = JSON.parse(data);
+                let findingsTemp = {};
+                for (const finding of parsedData["analysisVulnerabilities"]) {
+                    findingsTemp[startIndex++] = finding;
+                }
+                return {
+                    "findingsTemp": findingsTemp,
+                    "endIndex": startIndex
+                }
+            },
+        },
+        "gitleaks": {
+            "name": "Gitleaks",
+            "processingFunction": (data, startIndex) => {
+                const parsedData = JSON.parse(data);
+                let findingsTemp = {};
+                for (const finding of parsedData) {
+                    findingsTemp[startIndex++] = finding;
+                }
+                return {
+                    "findingsTemp": findingsTemp,
+                    "endIndex": startIndex
+                }
+            },
+        },
+        "sonarqube": {
+            "name": "SonarQube",
+            "processingFunction": (data, startIndex) => {
+                const parsedData = JSON.parse(data);
+                let findingsTemp = {};
+                for (const issue of parsedData["issues"]) {
+                    findingsTemp[startIndex++] = issue;
+                }
+                return {
+                    "findingsTemp": findingsTemp,
+                    "endIndex": startIndex
+                }
+            },
+        },
+        "dependency_checker": {
+            "name": "Dependency Checker",
+            "processingFunction": (data, startIndex) => {
+                const parsedData = JSON.parse(data);
+                let findingsTemp = {};
+                for (const exception of parsedData["scanInfo"]["analysisExceptions"]) {
+                    findingsTemp[startIndex++] = exception;
+                }
+                return {
+                    "findingsTemp": findingsTemp,
+                    "endIndex": startIndex
+                }
+            },
+        },
     };
 
     // --- Functions ---
