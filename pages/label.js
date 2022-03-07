@@ -484,6 +484,45 @@ const LabelDS = (props) => {
         }
     };
 
+    const handleNextToolJump = (isAllFindings) => {
+        let {index, collection} = getIndexCollection(isAllFindings);
+        // get metadata of next tool in line
+        let metadata,
+            findingId = parseInt(collection[index]);  // findingId to check inside metadata
+        for (let i = 0; i < allFindingsMetaData.length; i++) {
+            metadata = allFindingsMetaData[i];
+            if (metadata.startIndex <= findingId && metadata.endIndex >= findingId) {
+                // select next possible metadata object
+                if (i < allFindingsMetaData.length - 1) {
+                    metadata = allFindingsMetaData[i+1];
+                } else {
+                    metadata = allFindingsMetaData[0];
+                }
+                break;
+            }
+        }
+        // get next possible index for tool of next metadata for current collection
+        for (let i = 0; i < collection.length; i++) {
+            findingId = parseInt(collection[i]);
+            if (metadata.startIndex <= findingId && metadata.endIndex >= findingId) {
+                if (isAllFindings) {
+                    // Navigate All Findings
+                    setSettings({
+                        ...settings,
+                        selectedAllFindingsIdx: i
+                    });
+                } else {
+                    // Navigate Current Collection
+                    setSettings({
+                        ...settings,
+                        selectedCurrentCollectionIdx: i
+                    });
+                }
+                break;
+            }
+        }
+    };
+
     // --- Rendered component ---
     return (
         <>
@@ -500,7 +539,7 @@ const LabelDS = (props) => {
                 <div className={"col-sm-6"}>
                     <h3>Current collection</h3>
                     <Row>
-                        <Col>
+                        <div className={"col-md-9"}>
                             <p className={"mt-2"}>
                                 Total {currentCollection.length} finding(s)
                                 {currentCollection.length > 0 &&
@@ -509,9 +548,9 @@ const LabelDS = (props) => {
                                     </>
                                 }
                             </p>
-                        </Col>
-                        <Col>
-                            <ButtonGroup aria-label="Navigate current collection" className={"float-end mb-3"}>
+                        </div>
+                        <div className={"col-md-3"}>
+                            <ButtonGroup aria-label="Navigate current collection" className={"float-end"}>
                                 <Button onClick={() => {handleNavigateCollections(false, false)}}
                                         variant="secondary"
                                         disabled={!isNavigationPossible(false, false)}
@@ -520,6 +559,16 @@ const LabelDS = (props) => {
                                         variant="secondary"
                                         disabled={!isNavigationPossible(false, true)}
                                 >Next</Button>
+                            </ButtonGroup>
+                        </div>
+                    </Row>
+                    <Row>
+                        <Col>
+                            <ButtonGroup aria-label="Navigate all findings" className={"float-end mb-3"}>
+                                <Button onClick={() => {handleNextToolJump(false)}}
+                                        variant="secondary"
+                                        disabled={currentCollection.length === 0}
+                                >Change tool</Button>
                             </ButtonGroup>
                         </Col>
                     </Row>
@@ -594,7 +643,7 @@ const LabelDS = (props) => {
                 <div className={"col-sm-6"}>
                     <h3>All findings</h3>
                     <Row>
-                        <Col>
+                        <div className={"col-md-9"}>
                             <p className={"mt-2"}>
                                 Total {allFindings.length} finding(s)
                                 {allFindings.length > 0 &&
@@ -603,9 +652,9 @@ const LabelDS = (props) => {
                                     </>
                                 }
                             </p>
-                        </Col>
-                        <Col>
-                            <ButtonGroup aria-label="Navigate all findings" className={"float-end mb-3"}>
+                        </div>
+                        <div className={"col-md-3"}>
+                            <ButtonGroup aria-label="Navigate all findings" className={"float-end"}>
                                 <Button onClick={() => {handleNavigateCollections(true, false)}}
                                         variant="secondary"
                                         disabled={!isNavigationPossible(true, false)}
@@ -614,6 +663,16 @@ const LabelDS = (props) => {
                                         variant="secondary"
                                         disabled={!isNavigationPossible(true, true)}
                                 >Next</Button>
+                            </ButtonGroup>
+                        </div>
+                    </Row>
+                    <Row>
+                        <Col>
+                            <ButtonGroup aria-label="Navigate all findings" className={"float-end mb-3"}>
+                                <Button onClick={() => {handleNextToolJump(true)}}
+                                        variant="secondary"
+                                        disabled={allFindings.length === 0}
+                                >Change tool</Button>
                             </ButtonGroup>
                         </Col>
                     </Row>
