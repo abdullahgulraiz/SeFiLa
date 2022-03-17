@@ -5,6 +5,8 @@ import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import Table from 'react-bootstrap/Table';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
+import SecurityTools from "../security-tools";
+import securityTools from "../security-tools";
 
 export default function Label() {
     const [step, setStep] = useState(1);
@@ -29,171 +31,7 @@ const GenerateDS = (props) => {
     const [processedFindings, setProcessedFindings] = useState({});
     const [findingFilesData, setFindingFilesData] = useState([]);
     const [formFields, setFormFields] = useState({'file': undefined, 'tool': "-1"});
-    const tools = {
-        "trivy": {
-            "name": "Trivy",
-            "processingFunction": (data, startIndex) => {
-                const parsedData = JSON.parse(data);
-                let findingsTemp = {};
-                for (const target of Object.values(parsedData)) {
-                    for (const vulnerability of Object.values(target["Vulnerabilities"])) {
-                        findingsTemp[startIndex++] = vulnerability;
-                    }
-                }
-                return {
-                    "findingsTemp": findingsTemp,
-                    "endIndex": startIndex
-                }
-            },
-        },
-        "bandit": {
-            "name": "Bandit",
-            "processingFunction": (data, startIndex) => {
-                const parser = new DOMParser();
-                const parsedData = parser.parseFromString(data, "text/xml");
-                const findings = parsedData.getElementsByTagName("testcase");
-                const serializer = new XMLSerializer();
-                let findingsTemp = {};
-                for (const finding of findings){
-                    findingsTemp[startIndex++] = {"testcase": serializer.serializeToString(finding)};
-                }
-                return {
-                    "findingsTemp": findingsTemp,
-                    "endIndex": startIndex
-                }
-            },
-        },
-        "zap": {
-            "name": "ZAP",
-            "processingFunction": (data, startIndex) => {
-                const parsedData = JSON.parse(data);
-                let findingsTemp = {};
-                for (const site of Object.values(parsedData["site"])) {
-                    for (const alert of Object.values(site["alerts"])) {
-                        findingsTemp[startIndex++] = alert;
-                    }
-                }
-                return {
-                    "findingsTemp": findingsTemp,
-                    "endIndex": startIndex
-                }
-            },
-        },
-        "arachni": {
-            "name": "Arachni",
-            "processingFunction": (data, startIndex) => {
-                const parsedData = JSON.parse(data);
-                let findingsTemp = {};
-                for (const issue of Object.values(parsedData["issues"])) {
-                    findingsTemp[startIndex++] = issue;
-                }
-                return {
-                    "findingsTemp": findingsTemp,
-                    "endIndex": startIndex
-                }
-            },
-        },
-        "anchore": {
-            "name": "Anchore",
-            "processingFunction": (data, startIndex) => {
-                const parsedData = JSON.parse(data);
-                let findingsTemp = {};
-                for (const vulnerability of Object.values(parsedData["vulnerabilities"])) {
-                    findingsTemp[startIndex++] = vulnerability;
-                }
-                return {
-                    "findingsTemp": findingsTemp,
-                    "endIndex": startIndex
-                }
-            },
-        },
-        "codeql": {
-            "name": "CodeQL",
-            "processingFunction": (data, startIndex) => {
-                const parsedData = JSON.parse(data);
-                let findingsTemp = {};
-                for (const run of parsedData["runs"]) {
-                    for (const result of run["results"]) {
-                        findingsTemp[startIndex++] = result;
-                    }
-                }
-                return {
-                    "findingsTemp": findingsTemp,
-                    "endIndex": startIndex
-                }
-            },
-        },
-        "semgrep": {
-            "name": "Semgrep",
-            "processingFunction": (data, startIndex) => {
-                const parsedData = JSON.parse(data);
-                let findingsTemp = {};
-                for (const finding of parsedData) {
-                    findingsTemp[startIndex++] = finding;
-                }
-                return {
-                    "findingsTemp": findingsTemp,
-                    "endIndex": startIndex
-                }
-            },
-        },
-        "horusec": {
-            "name": "Horusec",
-            "processingFunction": (data, startIndex) => {
-                const parsedData = JSON.parse(data);
-                let findingsTemp = {};
-                for (const finding of parsedData["analysisVulnerabilities"]) {
-                    findingsTemp[startIndex++] = finding;
-                }
-                return {
-                    "findingsTemp": findingsTemp,
-                    "endIndex": startIndex
-                }
-            },
-        },
-        "gitleaks": {
-            "name": "Gitleaks",
-            "processingFunction": (data, startIndex) => {
-                const parsedData = JSON.parse(data);
-                let findingsTemp = {};
-                for (const finding of parsedData) {
-                    findingsTemp[startIndex++] = finding;
-                }
-                return {
-                    "findingsTemp": findingsTemp,
-                    "endIndex": startIndex
-                }
-            },
-        },
-        "sonarqube": {
-            "name": "SonarQube",
-            "processingFunction": (data, startIndex) => {
-                const parsedData = JSON.parse(data);
-                let findingsTemp = {};
-                for (const issue of parsedData["issues"]) {
-                    findingsTemp[startIndex++] = issue;
-                }
-                return {
-                    "findingsTemp": findingsTemp,
-                    "endIndex": startIndex
-                }
-            },
-        },
-        "dependency_checker": {
-            "name": "Dependency Checker",
-            "processingFunction": (data, startIndex) => {
-                const parsedData = JSON.parse(data);
-                let findingsTemp = {};
-                for (const exception of parsedData["scanInfo"]["analysisExceptions"]) {
-                    findingsTemp[startIndex++] = exception;
-                }
-                return {
-                    "findingsTemp": findingsTemp,
-                    "endIndex": startIndex
-                }
-            },
-        },
-    };
+    const tools = SecurityTools;
 
     // --- Functions ---
     const isFormValid = () => {
@@ -322,6 +160,13 @@ const LabelDS = (props) => {
     // --- General constants ---
     const allFindingsData = props.allFindings;
     const allFindingsMetaData = props.allFindingsMetadata;
+    // create a mapping of Finding ID -> Tool name for quicker retrieval for display
+    const findingToolMapping = allFindingsMetaData.reduce((result, metadata) => {
+        for (let i = metadata.startIndex; i <= metadata.endIndex; i++) {
+            result[i] = securityTools[metadata.tool].name;
+        }
+        return result;
+    }, {});
     // --- State variables ---
     const [savedCollections, setSavedCollections] = useState([]);
     const [currentCollection, setCurrentCollection] = useState([]);
@@ -539,22 +384,21 @@ const LabelDS = (props) => {
                 <div className={"col-sm-6"}>
                     <h3>Current collection</h3>
                     <Row>
-                        <div className={"col-md-9"}>
+                        <div className={"col-md-5"}>
                             <p className={"mt-2"}>
                                 Total {currentCollection.length} finding(s)
-                                {currentCollection.length > 0 &&
-                                    <>
-                                        , current finding ID {currentCollection[settings.selectedCurrentCollectionIdx]}
-                                    </>
-                                }
                             </p>
                         </div>
-                        <div className={"col-md-3"}>
-                            <ButtonGroup aria-label="Navigate current collection" className={"float-end"}>
+                        <div className={"col-md-7"}>
+                            <ButtonGroup aria-label="Navigate current collection" className={"float-end  mb-3"}>
                                 <Button onClick={() => {handleNavigateCollections(false, false)}}
                                         variant="secondary"
                                         disabled={!isNavigationPossible(false, false)}
                                 >Previous</Button>
+                                <Button onClick={() => {handleNextToolJump(false)}}
+                                        variant="warning"
+                                        disabled={currentCollection.length === 0}
+                                >Jump tool</Button>
                                 <Button onClick={() => {handleNavigateCollections(false, true)}}
                                         variant="secondary"
                                         disabled={!isNavigationPossible(false, true)}
@@ -562,21 +406,18 @@ const LabelDS = (props) => {
                             </ButtonGroup>
                         </div>
                     </Row>
-                    <Row>
-                        <Col>
-                            <ButtonGroup aria-label="Navigate all findings" className={"float-end mb-3"}>
-                                <Button onClick={() => {handleNextToolJump(false)}}
-                                        variant="secondary"
-                                        disabled={currentCollection.length === 0}
-                                >Change tool</Button>
-                            </ButtonGroup>
-                        </Col>
-                    </Row>
                     <div style={{"max-height": "500px", "overflow": "auto"}}>
                         <Table className={"mt-0"} striped bordered hover>
                         <thead>
                         <tr>
-                            <th>Finding</th>
+                            <th>
+                                Finding
+                                {currentCollection.length > 0 &&
+                                    <>
+                                        {" "}{currentCollection[settings.selectedCurrentCollectionIdx]} ({findingToolMapping[currentCollection[settings.selectedCurrentCollectionIdx]]})
+                                    </>
+                                }
+                            </th>
                         </tr>
                         </thead>
                         <tbody>
@@ -643,22 +484,21 @@ const LabelDS = (props) => {
                 <div className={"col-sm-6"}>
                     <h3>All findings</h3>
                     <Row>
-                        <div className={"col-md-9"}>
+                        <div className={"col-md-5"}>
                             <p className={"mt-2"}>
                                 Total {allFindings.length} finding(s)
-                                {allFindings.length > 0 &&
-                                    <>
-                                        , current finding ID {allFindings[settings.selectedAllFindingsIdx]}
-                                    </>
-                                }
                             </p>
                         </div>
-                        <div className={"col-md-3"}>
-                            <ButtonGroup aria-label="Navigate all findings" className={"float-end"}>
+                        <div className={"col-md-7"}>
+                            <ButtonGroup aria-label="Navigate all findings" className={"float-end mb-3"}>
                                 <Button onClick={() => {handleNavigateCollections(true, false)}}
                                         variant="secondary"
                                         disabled={!isNavigationPossible(true, false)}
                                 >Previous</Button>
+                                <Button onClick={() => {handleNextToolJump(true)}}
+                                        variant="warning"
+                                        disabled={allFindings.length === 0}
+                                >Jump tool</Button>
                                 <Button onClick={() => {handleNavigateCollections(true, true)}}
                                         variant="secondary"
                                         disabled={!isNavigationPossible(true, true)}
@@ -666,21 +506,18 @@ const LabelDS = (props) => {
                             </ButtonGroup>
                         </div>
                     </Row>
-                    <Row>
-                        <Col>
-                            <ButtonGroup aria-label="Navigate all findings" className={"float-end mb-3"}>
-                                <Button onClick={() => {handleNextToolJump(true)}}
-                                        variant="secondary"
-                                        disabled={allFindings.length === 0}
-                                >Change tool</Button>
-                            </ButtonGroup>
-                        </Col>
-                    </Row>
                     <div style={{"max-height": "500px", "overflow": "auto"}}>
                         <Table className={"mt-0"} striped bordered hover>
                         <thead>
                         <tr>
-                            <th>Finding</th>
+                            <th>
+                                Finding
+                                {allFindings.length > 0 &&
+                                    <>
+                                        {" "}{allFindings[settings.selectedAllFindingsIdx]} ({findingToolMapping[allFindings[settings.selectedAllFindingsIdx]]})
+                                    </>
+                                }
+                            </th>
                         </tr>
                         </thead>
                         <tbody>
