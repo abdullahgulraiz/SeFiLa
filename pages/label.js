@@ -4,20 +4,33 @@ import Col from 'react-bootstrap/Col';
 import Form from 'react-bootstrap/Form';
 import Button from 'react-bootstrap/Button';
 import Table from 'react-bootstrap/Table';
+import Alert from 'react-bootstrap/Alert';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
+import mongoose from "mongoose";
 import SecurityTools from "../security-tools";
-import securityTools from "../security-tools";
 
 export default function Label() {
     const [step, setStep] = useState(1);
     const [allFindings, setAllFindings] = useState({});
     const [allFindingsMetadata, setAllFindingsMetaData] = useState([]);
+    const [sessionId, setSessionId] = useState("");
+    const [restoredData, setRestoredData] = useState({savedCollections: [], currentCollection: [], settings: {}});
     let stepComponent;
     if (step === 1) {
         stepComponent = <GenerateDS
-            setStep={setStep} setAllFindings={setAllFindings} setAllFindingsMetaData={setAllFindingsMetaData} />;
+            setStep={setStep}
+            setAllFindings={setAllFindings}
+            setAllFindingsMetaData={setAllFindingsMetaData}
+            setSessionId={setSessionId}
+            setRestoredData={setRestoredData}
+        />;
     } else if (step === 2) {
-        stepComponent = <LabelDS allFindings={allFindings} allFindingsMetadata={allFindingsMetadata} />;
+        stepComponent = <LabelDS
+            allFindings={allFindings}
+            allFindingsMetadata={allFindingsMetadata}
+            sessionId={sessionId}
+            restoredData={restoredData}
+        />;
     }
     return (
         <div className={"mt-5"}>
@@ -30,13 +43,19 @@ const GenerateDS = (props) => {
     // --- State variables ---
     const [processedFindings, setProcessedFindings] = useState({});
     const [findingFilesData, setFindingFilesData] = useState([]);
-    const [formFields, setFormFields] = useState({'file': undefined, 'tool': "-1"});
+    const [formFields, setFormFields] = useState({'file': undefined, 'tool': "-1", 'sessionId': ""});
+    const [alert, setAlert] = useState({'variant': 'success', 'message': ""});
     const tools = SecurityTools;
 
     // --- Functions ---
-    const isFormValid = () => {
-        // check if a valid tool and valid file are selected
-        return (tools.hasOwnProperty(formFields.tool) && formFields.file !== undefined);
+    const isFormValid = (isUploadForm = true) => {
+        if (isUploadForm) {
+            // check if a valid tool and valid file are selected
+            return (tools.hasOwnProperty(formFields.tool) && formFields.file !== undefined);
+        } else {
+            // check if session ID field is populated
+            return formFields.sessionId.length > 0;
+        }
     };
     const processUploadedFile = (tool, file) => {
         // file will be loaded in the background
@@ -66,16 +85,45 @@ const GenerateDS = (props) => {
         // prevent form from submitting to server
         event.preventDefault();
         // ensure a valid tool and valid file are selected before processing
-        if (isFormValid()) {
+        if (isFormValid(true)) {
             processUploadedFile(formFields.tool, formFields.file);
         }
         // reset form
         setFormFields({...formFields, 'tool': "-1"});
     };
-    const handleDeleteReport = (id) => {
-        // TODO: implement. NOTE: consider starting index in processedFindings which depends on length of entries.
-        //  Use information from objects in findingFilesData state variable
-        console.log("Deleting entry ", id);
+    const handleRestoreProgress = (event) => {
+        // prevent form from submitting to server
+        event.preventDefault();
+        // ensure session Id is a valid Object ID
+        if (!mongoose.Types.ObjectId.isValid(formFields.sessionId)) {
+            setAlert({...alert, variant: 'danger', message: 'Please enter a valid Session ID.'});
+            return;
+        }
+        // get data from API
+        fetch(`api/progress?id=${formFields.sessionId}`)
+            .then((res) => {
+                if(!res.ok) throw new Error(res.statusText);
+                else return res.json();
+            })
+            .then((data) => {
+                // save session Id
+                props.setSessionId(formFields.sessionId);
+                // populate variables in current component
+                setProcessedFindings(data.allFindings);
+                setFindingFilesData(data.allFindingsMetadata);
+                // populate data for next component
+                props.setRestoredData({
+                    savedCollections: data.savedCollections,
+                    currentCollection: data.currentCollection,
+                    settings: data.settings
+                });
+                // inform user
+                setAlert({...alert, variant: 'success', message: 'Restoring progress successful.'});
+            })
+            .catch((error) => {
+                // inform user
+                setAlert({...alert, variant: 'danger', message: `${error}`});
+            });
     };
     const handleNextStep = () => {
         // save processed findings for the next step
@@ -89,8 +137,29 @@ const GenerateDS = (props) => {
     // --- Rendered component ---
     return (
         <>
+            {alert.message.length > 0 &&
+                <Alert variant={alert.variant}
+                       onClose={() => {setAlert({...alert, 'message': ""})}}
+                       dismissible={true}>
+                    {alert.message}
+                </Alert>
+            }
             <h1>Generate Dataset</h1>
             <Row className={"mt-3"}>
+                <h3>Restore progress</h3>
+                <Form onSubmit={handleRestoreProgress}>
+                    <Row className="mb-3">
+                        <Form.Group as={Col} controlId="formSessionId">
+                            <Form.Label>Session ID</Form.Label>
+                            <Form.Control
+                                type="text"
+                                onChange={(e) => {setFormFields({...formFields, 'sessionId': e.target.value})}}/>
+                        </Form.Group>
+                    </Row>
+                    <Button type="submit" disabled={!isFormValid(false)}>Retrieve</Button>
+                </Form>
+            </Row>
+            <Row className={"mt-4"}>
                 <h3>Upload</h3>
                 <Form onSubmit={handleUploadForm}>
                     <Row className="mb-3">
@@ -114,7 +183,7 @@ const GenerateDS = (props) => {
                             </Form.Select>
                         </Form.Group>
                     </Row>
-                    <Button type="submit" disabled={!isFormValid()}>Upload</Button>
+                    <Button type="submit" disabled={!isFormValid(true)}>Upload</Button>
                 </Form>
             </Row>
             <Row className={"mt-4"}>
@@ -125,7 +194,6 @@ const GenerateDS = (props) => {
                         <th>#</th>
                         <th>Tool</th>
                         <th># of Findings</th>
-                        <th></th>
                     </tr>
                     </thead>
                     <tbody>
@@ -135,21 +203,18 @@ const GenerateDS = (props) => {
                                 <td className={"col-md-1"}>{idx + 1}</td>
                                 <td className={"col-md-5"}>{tools[data.tool].name}</td>
                                 <td className={"col-md-5"}>{data.endIndex - data.startIndex + 1}</td>
-                                <td className={"col-md-1 text-center"}>
-                                    <Button onClick={() => {handleDeleteReport(idx)}} variant={"danger"}>🗑</Button>
-                                </td>
                             </tr>
                         )
                     })}
                     {findingFilesData.length === 0 &&
                         <tr>
-                            <td colSpan={4} className={"text-center"}>No reports yet.</td>
+                            <td colSpan={3} className={"text-center"}>No reports yet.</td>
                         </tr>
                     }
                     </tbody>
                 </Table>
             </Row>
-            {Object.keys(processedFindings).length > 0 && <Row className={"mt-3 col-md-4 offset-4"}>
+            {Object.keys(processedFindings).length > 0 && <Row className={"mt-3 mb-4 col-md-4 offset-4"}>
                 <Button variant="success" onClick={handleNextStep}>Next step</Button>
             </Row>}
         </>
@@ -163,19 +228,20 @@ const LabelDS = (props) => {
     // create a mapping of Finding ID -> Tool name for quicker retrieval for display
     const findingToolMapping = allFindingsMetaData.reduce((result, metadata) => {
         for (let i = metadata.startIndex; i <= metadata.endIndex; i++) {
-            result[i] = securityTools[metadata.tool].name;
+            result[i] = SecurityTools[metadata.tool].name;
         }
         return result;
     }, {});
     // --- State variables ---
-    const [savedCollections, setSavedCollections] = useState([]);
-    const [currentCollection, setCurrentCollection] = useState([]);
+    const [savedCollections, setSavedCollections] = useState(props.restoredData.savedCollections);
+    const [currentCollection, setCurrentCollection] = useState(props.restoredData.currentCollection);
     const [allFindings, setAllFindings] = useState(Object.keys(props.allFindings));
     const [settings, setSettings] = useState({
         "prettyCode": true,
         "selectedCurrentCollectionIdx": -1,
         "selectedAllFindingsIdx": 0,
-        "currentCollectionName": ""
+        "currentCollectionName": "",
+        ...props.restoredData.settings  // overwrite from settings saved previously
     });
 
     // --- Functions ---
@@ -588,7 +654,7 @@ const LabelDS = (props) => {
                     })}
                     {savedCollections.length === 0 &&
                         <tr>
-                            <td colSpan={3} className={"text-center"}>
+                            <td colSpan={4} className={"text-center"}>
                                 No collections yet.
                             </td>
                         </tr>
