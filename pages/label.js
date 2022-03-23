@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useState, useEffect} from 'react';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import Form from 'react-bootstrap/Form';
@@ -11,7 +11,7 @@ import SecurityTools from "../security-tools";
 
 export default function Label() {
     const [step, setStep] = useState(1);
-    const [allFindings, setAllFindings] = useState({});
+    const [allFindingsData, setAllFindingsData] = useState({});
     const [allFindingsMetadata, setAllFindingsMetaData] = useState([]);
     const [sessionId, setSessionId] = useState("");
     const [restoredData, setRestoredData] = useState({savedCollections: [], currentCollection: [], settings: {}});
@@ -19,14 +19,14 @@ export default function Label() {
     if (step === 1) {
         stepComponent = <GenerateDS
             setStep={setStep}
-            setAllFindings={setAllFindings}
+            setAllFindings={setAllFindingsData}
             setAllFindingsMetaData={setAllFindingsMetaData}
             setSessionId={setSessionId}
             setRestoredData={setRestoredData}
         />;
     } else if (step === 2) {
         stepComponent = <LabelDS
-            allFindings={allFindings}
+            allFindingsData={allFindingsData}
             allFindingsMetadata={allFindingsMetadata}
             sessionId={sessionId}
             restoredData={restoredData}
@@ -109,7 +109,7 @@ const GenerateDS = (props) => {
                 // save session Id
                 props.setSessionId(formFields.sessionId);
                 // populate variables in current component
-                setProcessedFindings(data.allFindings);
+                setProcessedFindings(data.allFindingsData);
                 setFindingFilesData(data.allFindingsMetadata);
                 // populate data for next component
                 props.setRestoredData({
@@ -223,7 +223,7 @@ const GenerateDS = (props) => {
 
 const LabelDS = (props) => {
     // --- General constants ---
-    const allFindingsData = props.allFindings;
+    const allFindingsData = props.allFindingsData;
     const allFindingsMetaData = props.allFindingsMetadata;
     // create a mapping of Finding ID -> Tool name for quicker retrieval for display
     const findingToolMapping = allFindingsMetaData.reduce((result, metadata) => {
@@ -235,7 +235,14 @@ const LabelDS = (props) => {
     // --- State variables ---
     const [savedCollections, setSavedCollections] = useState(props.restoredData.savedCollections);
     const [currentCollection, setCurrentCollection] = useState(props.restoredData.currentCollection);
-    const [allFindings, setAllFindings] = useState(Object.keys(props.allFindings));
+    // determine which finding Ids have not been used to compute a pool of available finding Ids to choose from
+    const initiallyUsedFindingIds = [...new Set([
+        ...savedCollections.reduce((result, savedCollection) => {return [...result, ...savedCollection.collection]}, []),
+        ...currentCollection
+    ])];
+    const [allFindings, setAllFindings] = useState(
+        Object.keys(allFindingsData).filter((findingId) => !initiallyUsedFindingIds.includes(findingId))
+    );
     const [settings, setSettings] = useState({
         "prettyCode": true,
         "selectedCurrentCollectionIdx": -1,
@@ -243,8 +250,67 @@ const LabelDS = (props) => {
         "currentCollectionName": "",
         ...props.restoredData.settings  // overwrite from settings saved previously
     });
+    const [saveStatus, setSaveStatus] = useState({
+        sessionId: "",
+        isSaving: false,
+        lastSaved: ""
+    });
+
+    // --- Function to run whenever states of specific variables change ---
+    useEffect(() => {
+        // check if a save operation is already in progress, and skip
+        if (saveStatus.isSaving) return;
+        // set flag to prevent multiple operations
+        setSaveStatus({...saveStatus, isSaving: true});
+        // first execution
+        if (saveStatus.sessionId === "") {
+            // create a session if not created
+            if (props.sessionId === "") {
+                // save progress to new session
+                saveProgress(true);
+                return;
+            }
+            // choose an existing session
+            setSaveStatus({...saveStatus, sessionId: props.sessionId});
+        }
+        // save progress to existing session
+        saveProgress(false);
+    }, [props.sessionId, savedCollections.length, currentCollection.length]);
 
     // --- Functions ---
+    const saveProgress = (isNew = false) => {
+        // set sessionId from parent props (for first update) or from local state for other operations
+        const sessionId = saveStatus.sessionId === "" ? props.sessionId : saveStatus.sessionId;
+        // formulate URL if new session or updating an existing session
+        const apiUri = isNew ? `api/progress` : `api/progress?id=${sessionId}`;
+        // formulate request body
+        const requestBody = {
+            "settings": settings,
+            "savedCollections": savedCollections,
+            "currentCollection": currentCollection,
+            "allFindingsData": allFindingsData,
+            "allFindingsMetadata": allFindingsMetaData
+        };
+        // post data to API
+        fetch(apiUri, {
+            method: isNew ? "POST" : "PUT",
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+        }).then((res) => {
+            // check for errors in response
+                if(!res.ok) throw new Error(res.statusText);
+                else return res.json();
+            })
+            .then((data) => {
+                setSaveStatus({...saveStatus, sessionId: data._id, lastSaved: `${new Date().toLocaleString()}`});
+            })
+            .catch((error) => {
+                // set error message
+                setSaveStatus({...saveStatus, lastSaved: `(error: ${error})`});
+            });
+        // change status to allow another saving job
+        setSaveStatus({...saveStatus, isSaving: false});
+    };
     const handleMoveFinding = (isAddOperation) => {
         let idx;
         if (isAddOperation) {
@@ -394,7 +460,6 @@ const LabelDS = (props) => {
             });
         }
     };
-
     const handleNextToolJump = (isAllFindings) => {
         let {index, collection} = getIndexCollection(isAllFindings);
         // get metadata of next tool in line
@@ -439,6 +504,21 @@ const LabelDS = (props) => {
         <>
             <h1>Label Dataset</h1>
             <Row className={"mt-3"}>
+                <Col>
+                    <span>
+                        Session {saveStatus.sessionId.length === 0 && <>(loading)</>}{saveStatus.sessionId.length > 0 && <b>{saveStatus.sessionId}</b>},
+                        {saveStatus.isSaving &&
+                            <> saving...</>
+                        }
+                        {!saveStatus.isSaving &&
+                            <>
+                                {" "}
+                                {saveStatus.lastSaved.length > 0 && <>last saved on {saveStatus.lastSaved}</>}
+                                {saveStatus.lastSaved.length === 0 && <>(loading)</>}
+                            </>
+                        }
+                    </span>
+                </Col>
                 <Col>
                     <Form.Check
                         className={"float-end"} type={"switch"} id={"custom-switch"} label="Pretty code" defaultChecked={true}
@@ -489,7 +569,7 @@ const LabelDS = (props) => {
                         <tbody>
                         {currentCollection.length > 0 &&
                             <tr>
-                                <td style={{"word-wrap": "break-word", "word-break": "break-word"}}>
+                                <td style={{"wordWrap": "break-word", "wordBreak": "break-word"}}>
                                     {settings.prettyCode &&
                                         <pre>
                                             <code>
@@ -589,7 +669,7 @@ const LabelDS = (props) => {
                         <tbody>
                         {allFindings.length > 0 &&
                             <tr>
-                                <td style={{"word-wrap": "break-word", "word-break": "break-word"}}>
+                                <td style={{"wordWrap": "break-word", "wordBreak": "break-word"}}>
                                     {settings.prettyCode &&
                                         <pre>
                                             <code>

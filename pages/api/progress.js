@@ -1,12 +1,14 @@
 const mongoose = require('mongoose');
 
 // define Progress schema
-const savedFields = ["settings", "savedCollections", "currentCollection", "allFindings", "allFindingsMetadata"];
+const savedFields = [
+  "settings", "savedCollections", "currentCollection", "allFindingsData", "allFindingsMetadata"
+];
 const progressSchema = new mongoose.Schema({
   settings: {type: mongoose.Schema.Types.Mixed, required: true},
   savedCollections: {type: [mongoose.Schema.Types.Mixed], required: true},
-  currentCollection: {type: [mongoose.Schema.Types.Mixed], required: true},
-  allFindings: {type: mongoose.Schema.Types.Mixed, required: true},
+  currentCollection: {type: [mongoose.Schema.Types.String], required: true},
+  allFindingsData: {type: mongoose.Schema.Types.Mixed, required: true},
   allFindingsMetadata: {type: [mongoose.Schema.Types.Mixed], required: true},
 });
 
