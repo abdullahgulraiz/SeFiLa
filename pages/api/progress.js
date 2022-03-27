@@ -82,3 +82,13 @@ export default async function handler(req, res) {
       await res.status(405).json({"error": "Method not allowed."});
   }
 }
+
+// Next.js config to prevent limiting of request > 4Mb
+export const config = {
+    api: {
+        bodyParser: {
+            sizeLimit: false
+        }
+    }
+}
+
