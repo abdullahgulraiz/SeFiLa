@@ -8,6 +8,7 @@ import Alert from 'react-bootstrap/Alert';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import mongoose from "mongoose";
 import SecurityTools from "../security-tools";
+import {ChunkString} from "../utils";
 
 export default function Label() {
     const [step, setStep] = useState(1);
@@ -21,6 +22,7 @@ export default function Label() {
             setStep={setStep}
             setAllFindings={setAllFindingsData}
             setAllFindingsMetaData={setAllFindingsMetaData}
+            sessionId={sessionId}
             setSessionId={setSessionId}
             setRestoredData={setRestoredData}
         />;
@@ -130,8 +132,78 @@ const GenerateDS = (props) => {
         props.setAllFindings(processedFindings);
         // save meta-data for the next step
         props.setAllFindingsMetaData(findingFilesData);
+        // create a new session and get session Id
+        if (!props.sessionId) {
+            console.log("Check A");
+            fetch("/api/progress", {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    "settings": {},
+                    "savedCollections": [],
+                    "currentCollection": [],
+                    "allFindingsData": {},
+                    "allFindingsMetadata": []
+                })
+            }).then((res) => {
+                // check for errors in response
+                if(!res.ok) throw new Error(res.statusText);
+                else return res.json();
+            })
+              .then((data) => {
+                props.setSessionId(data._id);
+              })
+              .catch((error) => {
+                // inform user
+                setAlert({...alert, variant: 'danger', message: `${error}`});
+              });
+        }
+        // form request body
+        let requestBody = JSON.stringify({
+            "allFindingsData": processedFindings,
+            "allFindingsMetadata": findingFilesData
+        });
+        // convert Json to base64 data
+        requestBody = Buffer.from(requestBody).toString('base64');
+        // chunk data to stay within request-size limit
+        requestBody = ChunkString(requestBody, 20000);
+        // make requests
+        let uri, completeRequests = -1;
+        const numChunks = requestBody.length - 1;
+        let promiseList = [];
+        for (const [chunkIdx, requestChunk] of requestBody.entries()) {
+            uri = `/api/progress?id=${props.sessionId}&chunk=${chunkIdx}&total=${numChunks}&data=findings`;
+            // upload findings and meta-data to server for backup
+            promiseList.push(
+                fetch(uri, {
+                    method: "PUT",
+                    body: requestChunk
+                })
+                .then((res) => {
+                    // check for errors in response
+                    const body = res.json();
+                    // console.log(body);
+                    if(!res.ok) {
+                        throw new Error(res.statusText);
+                    }
+                    else return body;
+                })
+                .then((data) => {
+                    const completePercentage = ((++completeRequests)/numChunks) * 100;
+                    console.log("chunkIdx", chunkIdx, "completeRequests", completeRequests, "numChunks", numChunks);
+                    setAlert({...alert, variant: 'success', message: `Uploading dataset: ${completePercentage}`});
+                })
+                .catch((error) => {
+                    // inform user
+                    setAlert({...alert, variant: 'danger', message: `${error}`});
+                })
+            )
+        }
+        Promise.all(promiseList).then(() => {
+            console.log("Check E");
+        });
         // proceed to the next step
-        props.setStep(2);
+        // props.setStep(2);
     };
 
     // --- Rendered component ---
