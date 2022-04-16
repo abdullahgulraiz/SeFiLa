@@ -7,6 +7,7 @@ import Table from 'react-bootstrap/Table';
 import Alert from 'react-bootstrap/Alert';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import mongoose from "mongoose";
+import _ from "underscore";
 import SecurityTools from "../security-tools";
 import {ChunkString} from "../utils";
 
@@ -47,6 +48,10 @@ const GenerateDS = (props) => {
     const [findingFilesData, setFindingFilesData] = useState([]);
     const [formFields, setFormFields] = useState({'file': undefined, 'tool': "-1", 'sessionId': ""});
     const [alert, setAlert] = useState({'variant': 'success', 'message': ""});
+    const [settings, setSettings] = useState({
+        nextStepButtonEnabled: true,
+        progressRetrieveButtonEnabled: true
+    });
     const tools = SecurityTools;
 
     // --- Functions ---
@@ -101,6 +106,8 @@ const GenerateDS = (props) => {
             setAlert({...alert, variant: 'danger', message: 'Please enter a valid Session ID.'});
             return;
         }
+        // disable button
+        setSettings({...settings, progressRetrieveButtonEnabled: false});
         // get data from API
         fetch(`api/progress?id=${formFields.sessionId}`)
             .then((res) => {
@@ -125,17 +132,16 @@ const GenerateDS = (props) => {
             .catch((error) => {
                 // inform user
                 setAlert({...alert, variant: 'danger', message: `${error}`});
+            })
+            .finally(() => {
+                // enable button
+                setSettings({...settings, progressRetrieveButtonEnabled: true});
             });
     };
-    const handleNextStep = () => {
-        // save processed findings for the next step
-        props.setAllFindings(processedFindings);
-        // save meta-data for the next step
-        props.setAllFindingsMetaData(findingFilesData);
-        // create a new session and get session Id
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+    const getSessionId = async () => {
         if (!props.sessionId) {
-            console.log("Check A");
-            fetch("/api/progress", {
+            let result = await fetch("/api/progress", {
                 method: "POST",
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -145,65 +151,88 @@ const GenerateDS = (props) => {
                     "allFindingsData": {},
                     "allFindingsMetadata": []
                 })
-            }).then((res) => {
-                // check for errors in response
-                if(!res.ok) throw new Error(res.statusText);
-                else return res.json();
-            })
-              .then((data) => {
-                props.setSessionId(data._id);
-              })
-              .catch((error) => {
-                // inform user
-                setAlert({...alert, variant: 'danger', message: `${error}`});
-              });
+            });
+            if (result.ok) {
+                result = await result.json();
+                if (result._id) {
+                    props.setSessionId(result._id);
+                    return result._id;
+                } else {
+                    setAlert({...alert, variant: 'danger', message: `Error creating a new session.`});
+                }
+            } else {
+                setAlert({...alert, variant: 'danger', message: `Error making request for creating a new session.`});
+            }
+        } else {
+            return props.sessionId;
         }
-        // form request body
-        let requestBody = JSON.stringify({
+    };
+    const handleNextStep = async () => {
+        // disable button
+        setSettings({...settings, nextStepButtonEnabled: false});
+        // save processed findings for the next step
+        props.setAllFindings(processedFindings);
+        // save meta-data for the next step
+        props.setAllFindingsMetaData(findingFilesData);
+        // create or get existing sessionId
+        let sessionId = await getSessionId();
+        // form update request body
+        const requestBodyJson = {
             "allFindingsData": processedFindings,
             "allFindingsMetadata": findingFilesData
-        });
+        };
         // convert Json to base64 data
-        requestBody = Buffer.from(requestBody).toString('base64');
+        let requestBody = Buffer.from( encodeURIComponent( JSON.stringify( requestBodyJson ) ) ).toString('base64');
         // chunk data to stay within request-size limit
-        requestBody = ChunkString(requestBody, 20000);
+        requestBody = ChunkString(requestBody, 100000);
         // make requests
         let uri, completeRequests = -1;
         const numChunks = requestBody.length - 1;
-        let promiseList = [];
-        for (const [chunkIdx, requestChunk] of requestBody.entries()) {
-            uri = `/api/progress?id=${props.sessionId}&chunk=${chunkIdx}&total=${numChunks}&data=findings`;
-            // upload findings and meta-data to server for backup
-            promiseList.push(
-                fetch(uri, {
-                    method: "PUT",
-                    body: requestChunk
-                })
-                .then((res) => {
-                    // check for errors in response
-                    const body = res.json();
-                    // console.log(body);
-                    if(!res.ok) {
-                        throw new Error(res.statusText);
-                    }
-                    else return body;
-                })
-                .then((data) => {
-                    const completePercentage = ((++completeRequests)/numChunks) * 100;
-                    console.log("chunkIdx", chunkIdx, "completeRequests", completeRequests, "numChunks", numChunks);
-                    setAlert({...alert, variant: 'success', message: `Uploading dataset: ${completePercentage}`});
-                })
-                .catch((error) => {
-                    // inform user
-                    setAlert({...alert, variant: 'danger', message: `${error}`});
-                })
-            )
+        let chunkIdx = 0, requestChunk, result;
+        let requestCount = 0;
+        while(true) {
+            if (chunkIdx > numChunks || ++requestCount > 1) break;
+            uri = `/api/progress?id=${sessionId}&chunk=${chunkIdx}&total=${numChunks}&data=findings&operation=store`;
+            requestChunk = requestBody[chunkIdx];
+            result = await fetch(uri, {method: "PUT", body: requestChunk});
+            if (result.ok) {
+                result = await result.json();
+                if (result.data === requestChunk) {
+                    const completePercentage = (((++completeRequests)/numChunks) * 100) | 0;
+                    setAlert({...alert, variant: 'info', message: `Uploading dataset: ${completePercentage}%`});
+                    chunkIdx++;
+                    requestCount = 0;
+                } else {
+                    setAlert({...alert, variant: 'danger', message: `Error posting data for chunk Id ${chunkIdx}.`});
+                }
+            } else {
+                setAlert({...alert, variant: 'danger', message: `Error making request for chunk Idx ${chunkIdx}. Trying again in 10s.`});
+                await delay(10000);
+            }
         }
-        Promise.all(promiseList).then(() => {
-            console.log("Check E");
-        });
-        // proceed to the next step
-        // props.setStep(2);
+        if (chunkIdx > numChunks) {
+            setAlert({...alert, variant: 'info', message: `Performing sanity check...`});
+            uri = `/api/progress?id=${sessionId}&data=findings&operation=fetch`;
+            result = await fetch(uri, {method: "PUT"});
+            if (result.ok) {
+                result = await result.json();
+                result = {
+                    "allFindingsData": result.data.allFindingsData,
+                    "allFindingsMetadata": result.data.allFindingsMetadata
+                };
+                if (_.isEqual(result, requestBodyJson)) {
+                    // proceed to the next step
+                    console.log("Proceeding to next step.");
+                    // props.setStep(2);
+                } else {
+                    setAlert({...alert, variant: 'danger', message: `Sanity check failed. Please retry.`});
+                }
+            } else {
+                setAlert({...alert, variant: 'danger', message: `Server error while performing sanity check.`});
+            }
+        }
+        // enable button
+        setSettings({...settings, nextStepButtonEnabled: true});
     };
 
     // --- Rendered component ---
@@ -228,7 +257,7 @@ const GenerateDS = (props) => {
                                 onChange={(e) => {setFormFields({...formFields, 'sessionId': e.target.value})}}/>
                         </Form.Group>
                     </Row>
-                    <Button type="submit" disabled={!isFormValid(false)}>Retrieve</Button>
+                    <Button type="submit" disabled={!isFormValid(false) || !settings.progressRetrieveButtonEnabled}>Retrieve</Button>
                 </Form>
             </Row>
             <Row className={"mt-4"}>
@@ -287,7 +316,7 @@ const GenerateDS = (props) => {
                 </Table>
             </Row>
             {Object.keys(processedFindings).length > 0 && <Row className={"mt-3 mb-4 col-md-4 offset-4"}>
-                <Button variant="success" onClick={handleNextStep}>Next step</Button>
+                <Button variant="success" onClick={handleNextStep} disabled={!settings.nextStepButtonEnabled} >Next step</Button>
             </Row>}
         </>
     )
@@ -594,7 +623,7 @@ const LabelDS = (props) => {
                 <Col>
                     <Form.Check
                         className={"float-end"} type={"switch"} id={"custom-switch"} label="Pretty code" defaultChecked={true}
-                        onChange={(e) => {setSettings({...settings, prettyCode: !settings.prettyCode})}}
+                        onChange={() => {setSettings({...settings, prettyCode: !settings.prettyCode})}}
                     />
                 </Col>
             </Row>

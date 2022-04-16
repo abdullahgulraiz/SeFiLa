@@ -2,11 +2,11 @@ const mongoose = require('mongoose');
 
 // define model schemas
 const progressSchema = new mongoose.Schema({
-  settings: {type: mongoose.Schema.Types.Mixed, required: true},
-  savedCollections: {type: [mongoose.Schema.Types.Mixed], required: true},
-  currentCollection: {type: [mongoose.Schema.Types.String], required: true},
-  allFindingsData: {type: mongoose.Schema.Types.Mixed, required: true},
-  allFindingsMetadata: {type: [mongoose.Schema.Types.Mixed], required: true},
+  settings: {type: mongoose.Schema.Types.Mixed, default: {}},
+  savedCollections: {type: [mongoose.Schema.Types.Mixed], default: []},
+  currentCollection: {type: [mongoose.Schema.Types.String], default: []},
+  allFindingsData: {type: mongoose.Schema.Types.Mixed, default: {}},
+  allFindingsMetadata: {type: [mongoose.Schema.Types.Mixed], default: []},
 });
 const progressCacheSchema = new mongoose.Schema({
   progressId: {type: mongoose.Schema.Types.ObjectId, required: true, unique: true},
@@ -27,26 +27,26 @@ const validateIdFormat = (objectId) => {
 const saveToCache = async (progressId, currentPosition, maxPosition, data) => {
   // fetch related record
   let cache = await ProgressCache.findOne({progressId: progressId}).exec();
+  // reset cache if position is 0
+  if (currentPosition === 0) cache.data = {};
   // add entry to cache
   cache.data[currentPosition] = data;
   cache.markModified('data');
-  cache = await cache.save();
-  // return whether complete object was received in cache
-  const receivedChunks = Object.keys(cache.data).length;
-  console.log("saveToCache(), received: ", receivedChunks, "total: ", maxPosition);
-  return receivedChunks < maxPosition;
+  await cache.save();
+  return data;
 };
 
-const retrieveFromCache = async (progressId, maxPosition) => {
+const retrieveFromCache = async (progressId) => {
   // fetch related record
-  let cache = await ProgressCache.findOne({progressId: progressId}).exec();
+  const cache = await ProgressCache.findOne({progressId: progressId}).exec();
+  const maxPosition = Object.keys(cache.data).length - 1;
   // concatenate base64 chunks in order
   let jsonTemp = [];
   for (let i = 0; i <= maxPosition; i++) {
     jsonTemp.push(cache.data[i]);
   }
   // decode to string from base64
-  jsonTemp = Buffer.from(jsonTemp.join(""), 'base64').toString('ascii');
+  jsonTemp = decodeURIComponent( Buffer.from( jsonTemp.join(""), 'base64').toString('utf-8') );
   // parse to JSON
   const jsonParsed = JSON.parse(jsonTemp);
   // remove entry from cache
@@ -98,18 +98,30 @@ export default async function handler(req, res) {
       result = await validIdMiddleware(req, res);
       if (!result) return;
       // save incoming data to cache
-      const { query: { chunk, total, data }} = req;
-      if (!chunk || !total || (parseInt(chunk) > parseInt(total))) {
-        await res.status(400).json({"error": "Please provide valid `chunk` and `total` parameters."});
+      const { query: { chunk, total, data, operation }} = req;
+      if (!operation) {
+        await res.status(400).json({"error": "Please provide a valid `operation` query parameter."});
         return null;
       }
-      if (await saveToCache(result.id, parseInt(chunk), parseInt(total), req.body)) {
-        await res.status(200).json({"message": `Saved chunk ${chunk} of ${total}.`, data: {}});
+      if (operation === "store") {
+        if (!chunk || !total || (parseInt(chunk) > parseInt(total))) {
+          await res.status(400).json({"error": "Please provide valid `chunk` and `total` query parameters."});
+          return null;
+        }
+        const savedData = await saveToCache(result.id, parseInt(chunk), parseInt(total), req.body);
+        if (savedData) {
+          await res.status(200).json({"message": `Saved chunk ${chunk} of ${total}.`, data: savedData});
+        } else {
+          await res.status(500).json({"error": `Could not process ${chunk} of ${total}.`});
+        }
         return null;
       } else {
+        if (!data) {
+          await res.status(400).json({"error": "Please provide a valid `data` query parameter."});
+          return null;
+        }
         // if we're here, means all data has been received, and we can process it
         const progressObj = await retrieveFromCache(result.id, parseInt(total));
-        console.log("Check Backend A", progressObj);
         // save data selectively
         switch (data) {
           case "findings":
