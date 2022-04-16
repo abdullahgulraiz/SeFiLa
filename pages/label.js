@@ -365,7 +365,7 @@ const LabelDS = (props) => {
     // --- Function to run whenever states of specific variables change ---
     useEffect(async () => {
         // save progress to existing session
-        await saveProgress();
+        saveProgress();
     }, [props.sessionId, savedCollections.length, currentCollection.length]);
 
     // --- Functions ---
@@ -624,7 +624,7 @@ const LabelDS = (props) => {
                             </ButtonGroup>
                         </div>
                     </Row>
-                    <div style={{"max-height": "500px", "overflow": "auto"}}>
+                    <div style={{maxHeight: "500px", overflow: "auto"}}>
                         <Table className={"mt-0"} striped bordered hover>
                         <thead>
                         <tr>
@@ -724,7 +724,7 @@ const LabelDS = (props) => {
                             </ButtonGroup>
                         </div>
                     </Row>
-                    <div style={{"max-height": "500px", "overflow": "auto"}}>
+                    <div style={{maxHeight: "500px", overflow: "auto"}}>
                         <Table className={"mt-0"} striped bordered hover>
                         <thead>
                         <tr>
