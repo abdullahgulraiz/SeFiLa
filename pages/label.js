@@ -190,13 +190,16 @@ const GenerateDS = (props) => {
         const numChunks = requestBody.length - 1;
         let chunkIdx = 0, requestChunk, result;
         let requestCount = 0;
+        // keep attempting upload
         while(true) {
+            // stop if all chunks uploaded or request limit reached
             if (chunkIdx > numChunks || ++requestCount > 1) break;
             uri = `/api/progress?id=${sessionId}&chunk=${chunkIdx}&total=${numChunks}&data=findings&operation=store`;
             requestChunk = requestBody[chunkIdx];
             result = await fetch(uri, {method: "PUT", body: requestChunk});
             if (result.ok) {
                 result = await result.json();
+                // validate right chunk was stored and show status
                 if (result.data === requestChunk) {
                     const completePercentage = (((++completeRequests)/numChunks) * 100) | 0;
                     setAlert({...alert, variant: 'info', message: `Uploading dataset: ${completePercentage}%`});
@@ -211,6 +214,7 @@ const GenerateDS = (props) => {
             }
         }
         if (chunkIdx > numChunks) {
+            // perform sanity check of all uploaded data
             setAlert({...alert, variant: 'info', message: `Performing sanity check...`});
             uri = `/api/progress?id=${sessionId}&data=findings&operation=fetch`;
             result = await fetch(uri, {method: "PUT"});
@@ -220,10 +224,11 @@ const GenerateDS = (props) => {
                     "allFindingsData": result.data.allFindingsData,
                     "allFindingsMetadata": result.data.allFindingsMetadata
                 };
+                // compare stored and sent object
                 if (_.isEqual(result, requestBodyJson)) {
                     // proceed to the next step
-                    console.log("Proceeding to next step.");
-                    // props.setStep(2);
+                    props.setStep(2);
+                    return;
                 } else {
                     setAlert({...alert, variant: 'danger', message: `Sanity check failed. Please retry.`});
                 }
@@ -358,59 +363,35 @@ const LabelDS = (props) => {
     });
 
     // --- Function to run whenever states of specific variables change ---
-    useEffect(() => {
-        // check if a save operation is already in progress, and skip
-        if (saveStatus.isSaving) return;
-        // set flag to prevent multiple operations
-        setSaveStatus({...saveStatus, isSaving: true});
-        // first execution
-        if (saveStatus.sessionId === "") {
-            // create a session if not created
-            if (props.sessionId === "") {
-                // save progress to new session
-                saveProgress(true);
-                return;
-            }
-            // choose an existing session
-            setSaveStatus({...saveStatus, sessionId: props.sessionId});
-        }
+    useEffect(async () => {
         // save progress to existing session
-        saveProgress(false);
+        await saveProgress();
     }, [props.sessionId, savedCollections.length, currentCollection.length]);
 
     // --- Functions ---
-    const saveProgress = (isNew = false) => {
-        // set sessionId from parent props (for first update) or from local state for other operations
-        const sessionId = saveStatus.sessionId === "" ? props.sessionId : saveStatus.sessionId;
+    const saveProgress = async () => {
+        const sessionId = props.sessionId;
         // formulate URL if new session or updating an existing session
-        const apiUri = isNew ? `api/progress` : `api/progress?id=${sessionId}`;
+        const uri = `/api/progress?id=${sessionId}&data=progress&operation=fetch`;
         // formulate request body
         const requestBody = {
             "settings": settings,
             "savedCollections": savedCollections,
-            "currentCollection": currentCollection,
-            "allFindingsData": allFindingsData,
-            "allFindingsMetadata": allFindingsMetaData
+            "currentCollection": currentCollection
         };
-        // post data to API
-        fetch(apiUri, {
-            method: isNew ? "POST" : "PUT",
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        }).then((res) => {
-            // check for errors in response
-                if(!res.ok) throw new Error(res.statusText);
-                else return res.json();
-            })
-            .then((data) => {
-                setSaveStatus({...saveStatus, sessionId: data._id, lastSaved: `${new Date().toLocaleString()}`});
-            })
-            .catch((error) => {
+        let result = await fetch(uri, {method: "PUT", body: JSON.stringify(requestBody)});
+        if (result.ok) {
+            result = await result.json();
+            if (_.isEqual(result.data, requestBody)) {
+                setSaveStatus({...saveStatus, lastSaved: `${new Date().toLocaleString()}`});
+            } else {
                 // set error message
-                setSaveStatus({...saveStatus, lastSaved: `(error: ${error})`});
-            });
-        // change status to allow another saving job
-        setSaveStatus({...saveStatus, isSaving: false});
+                setSaveStatus({...saveStatus, lastSaved: `(error: failed to save data.)`});
+            }
+        } else {
+            // set error message
+            setSaveStatus({...saveStatus, lastSaved: `(error: failed to contact server.)`});
+        }
     };
     const handleMoveFinding = (isAddOperation) => {
         let idx;
@@ -607,17 +588,7 @@ const LabelDS = (props) => {
             <Row className={"mt-3"}>
                 <Col>
                     <span>
-                        Session {saveStatus.sessionId.length === 0 && <>(loading)</>}{saveStatus.sessionId.length > 0 && <b>{saveStatus.sessionId}</b>},
-                        {saveStatus.isSaving &&
-                            <> saving...</>
-                        }
-                        {!saveStatus.isSaving &&
-                            <>
-                                {" "}
-                                {saveStatus.lastSaved.length > 0 && <>last saved on {saveStatus.lastSaved}</>}
-                                {saveStatus.lastSaved.length === 0 && <>(loading)</>}
-                            </>
-                        }
+                        Session <b>{props.sessionId}</b>, {saveStatus.lastSaved.length > 0 && <>last saved on {saveStatus.lastSaved}</>}
                     </span>
                 </Col>
                 <Col>

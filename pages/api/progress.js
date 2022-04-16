@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+import _ from "underscore";
 
 // define model schemas
 const progressSchema = new mongoose.Schema({
@@ -120,11 +121,12 @@ export default async function handler(req, res) {
           await res.status(400).json({"error": "Please provide a valid `data` query parameter."});
           return null;
         }
-        // if we're here, means all data has been received, and we can process it
-        const progressObj = await retrieveFromCache(result.id, parseInt(total));
         // save data selectively
+        let progressObj;
         switch (data) {
           case "findings":
+            // get progress data from stored chunks in db
+            progressObj = await retrieveFromCache(result.id, parseInt(total));
             // save fields relevant to findings dataset
             const {allFindingsData, allFindingsMetadata} = progressObj;
             // validate
@@ -143,8 +145,10 @@ export default async function handler(req, res) {
             result = await result.save();
             break;
           case "progress":
+            // get progress data from request body
+            progressObj = req.body;
             // save fields relevant to the progress
-            const {settings, savedCollections, currentCollection} = progressObj;
+            const {settings, savedCollections, currentCollection} = JSON.parse(progressObj);
             // validate
             if (!settings || !savedCollections || !currentCollection) {
               await res.status(422).json(
@@ -159,6 +163,8 @@ export default async function handler(req, res) {
             result.markModified('savedCollections');
             result.markModified('currentCollection');
             result = await result.save();
+            // pick only required fields from result
+            result = _.pick(result, ['settings', 'savedCollections', 'currentCollection']);
             break;
           default:
             // save entire object
