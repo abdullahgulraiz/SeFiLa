@@ -46,7 +46,12 @@ const GenerateDS = (props) => {
     // --- State variables ---
     const [processedFindings, setProcessedFindings] = useState({});
     const [findingFilesData, setFindingFilesData] = useState([]);
-    const [formFields, setFormFields] = useState({'file': undefined, 'tool': "-1", 'sessionId': ""});
+    const [formFields, setFormFields] = useState({
+        'file': undefined,
+        'tool': "-1",
+        'sessionId': "",
+        'generatedDatasetFile': undefined
+    });
     const [alert, setAlert] = useState({'variant': 'success', 'message': ""});
     const [settings, setSettings] = useState({
         nextStepButtonEnabled: true,
@@ -55,13 +60,19 @@ const GenerateDS = (props) => {
     const tools = SecurityTools;
 
     // --- Functions ---
-    const isFormValid = (isUploadForm = true) => {
-        if (isUploadForm) {
-            // check if a valid tool and valid file are selected
-            return (tools.hasOwnProperty(formFields.tool) && formFields.file !== undefined);
-        } else {
-            // check if session ID field is populated
-            return formFields.sessionId.length > 0;
+    const isFormValid = (formName) => {
+        switch (formName) {
+            case "upload":
+                // check if a valid tool and valid file are selected
+                return (tools.hasOwnProperty(formFields.tool) && formFields.file !== undefined);
+            case "sessionId":
+                // check if session ID field is populated
+                return formFields.sessionId.length > 0;
+            case "generatedDataset":
+                // check if a valid file is uploaded
+                return formFields.generatedDatasetFile !== undefined;
+            default:
+                return false;
         }
     };
     const processUploadedFile = (tool, file) => {
@@ -92,14 +103,14 @@ const GenerateDS = (props) => {
         // prevent form from submitting to server
         event.preventDefault();
         // ensure a valid tool and valid file are selected before processing
-        if (isFormValid(true)) {
+        if (isFormValid("upload")) {
             processUploadedFile(formFields.tool, formFields.file);
         }
         // reset form
         setFormFields({...formFields, 'tool': "-1"});
     };
-    const handleRestoreProgress = (event) => {
-        // prevent form from submitting to server
+    const handleRestoreSessionIdProgress = (event) => {
+        // prevent default button behavior
         event.preventDefault();
         // ensure session Id is a valid Object ID
         if (!mongoose.Types.ObjectId.isValid(formFields.sessionId)) {
@@ -137,6 +148,49 @@ const GenerateDS = (props) => {
                 // enable button
                 setSettings({...settings, progressRetrieveButtonEnabled: true});
             });
+    };
+    const handleRestoreGeneratedDatasetProgress = (event) => {
+        // prevent default button behavior
+        event.preventDefault();
+        if (!isFormValid("generatedDataset")) {
+            setAlert({...alert, variant: 'danger', message: `Please select a valid generated dataset file.`});
+            return;
+        }
+        // file will be loaded in the background
+        const fileReader = new FileReader();
+        // define behavior of what's to be done once the file load
+        fileReader.onload = (e) => {
+            try {
+                // parse dataset file
+                const data = JSON.parse(e.target.result);
+                // generate allFindingsData and savedCollections from generated collections
+                let allFindingsData = {}, savedCollections = [];
+                for (const collectionObj of data.collections) {
+                    let savedCollectionTemp = {name: collectionObj.name, collection: []};
+                    for (const findingObj of collectionObj.findings) {
+                        const findingId = findingObj.id;
+                        savedCollectionTemp.collection.push(findingId);
+                        allFindingsData[parseInt(findingId)] = findingObj.finding;
+                    }
+                    savedCollections.push(savedCollectionTemp);
+                }
+                // populate current component variables
+                setFindingFilesData(data.metadata);
+                setProcessedFindings(allFindingsData);
+                // populate data for next component
+                props.setRestoredData({
+                    savedCollections: savedCollections,
+                    currentCollection: [],
+                    settings: {}
+                });
+                // inform user
+                setAlert({...alert, variant: 'success', message: 'Restoring progress successful.'});
+            } catch (e) {
+                setAlert({...alert, variant: 'danger', message: `Could not parse generated dataset file.`});
+            }
+        };
+        // read file from upload input
+        fileReader.readAsText(formFields.generatedDatasetFile);
     };
     const delay = ms => new Promise(res => setTimeout(res, ms));
     const getSessionId = async () => {
@@ -253,19 +307,27 @@ const GenerateDS = (props) => {
             <h1>Generate Dataset</h1>
             <Row className={"mt-3"}>
                 <h3>Restore progress</h3>
-                <Form onSubmit={handleRestoreProgress}>
+                <Form onSubmit={(e) => {e.preventDefault()}}>
                     <Row className="mb-3">
                         <Form.Group as={Col} controlId="formSessionId">
                             <Form.Label>Session ID</Form.Label>
                             <Form.Control
                                 type="text"
                                 onChange={(e) => {setFormFields({...formFields, 'sessionId': e.target.value})}}/>
+                            <Button className={"mt-3"} onClick={handleRestoreSessionIdProgress} disabled={!isFormValid("sessionId") || !settings.progressRetrieveButtonEnabled}>Retrieve</Button>
+                        </Form.Group>
+                        <Form.Group as={Col} controlId="formGeneratedDatasetFile">
+                            <Form.Label>Or, generated dataset</Form.Label>
+                            <Form.Control
+                                type="file"
+                                onChange={(e) => {setFormFields({...formFields, generatedDatasetFile: e.target.files[0]})}}/>
+                            <Button className={"mt-3"} onClick={handleRestoreGeneratedDatasetProgress} disabled={!isFormValid("generatedDataset")}>Upload</Button>
                         </Form.Group>
                     </Row>
-                    <Button type="submit" disabled={!isFormValid(false) || !settings.progressRetrieveButtonEnabled}>Retrieve</Button>
+
                 </Form>
             </Row>
-            <Row className={"mt-4"}>
+            <Row className={"mt-3"}>
                 <h3>Upload</h3>
                 <Form onSubmit={handleUploadForm}>
                     <Row className="mb-3">
@@ -289,7 +351,7 @@ const GenerateDS = (props) => {
                             </Form.Select>
                         </Form.Group>
                     </Row>
-                    <Button type="submit" disabled={!isFormValid(true)}>Upload</Button>
+                    <Button type="submit" disabled={!isFormValid("upload")}>Upload</Button>
                 </Form>
             </Row>
             <Row className={"mt-4"}>
