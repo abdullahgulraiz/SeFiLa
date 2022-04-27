@@ -120,7 +120,7 @@ const GenerateDS = (props) => {
         // disable button
         setSettings({...settings, progressRetrieveButtonEnabled: false});
         // get data from API
-        fetch(`api/progress?id=${formFields.sessionId}`)
+        fetch(`${process.env.NEXT_PUBLIC_API_BASE_PATH}api/progress?id=${formFields.sessionId}`)
             .then((res) => {
                 if(!res.ok) throw new Error(res.statusText);
                 else return res.json();
@@ -195,7 +195,7 @@ const GenerateDS = (props) => {
     const delay = ms => new Promise(res => setTimeout(res, ms));
     const getSessionId = async () => {
         if (!props.sessionId) {
-            let result = await fetch("/api/progress", {
+            let result = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_PATH}api/progress`, {
                 method: "POST",
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -248,7 +248,7 @@ const GenerateDS = (props) => {
         while(true) {
             // stop if all chunks uploaded or request limit reached
             if (chunkIdx > numChunks || ++requestCount > 1) break;
-            uri = `/api/progress?id=${sessionId}&chunk=${chunkIdx}&total=${numChunks}&data=findings&operation=store`;
+            uri = `${process.env.NEXT_PUBLIC_API_BASE_PATH}api/progress?id=${sessionId}&chunk=${chunkIdx}&total=${numChunks}&data=findings&operation=store`;
             requestChunk = requestBody[chunkIdx];
             result = await fetch(uri, {method: "PUT", body: requestChunk});
             if (result.ok) {
@@ -270,7 +270,7 @@ const GenerateDS = (props) => {
         if (chunkIdx > numChunks) {
             // perform sanity check of all uploaded data
             setAlert({...alert, variant: 'info', message: `Performing sanity check...`});
-            uri = `/api/progress?id=${sessionId}&data=findings&operation=fetch`;
+            uri = `${process.env.NEXT_PUBLIC_API_BASE_PATH}api/progress?id=${sessionId}&data=findings&operation=fetch`;
             result = await fetch(uri, {method: "PUT"});
             if (result.ok) {
                 result = await result.json();
@@ -434,7 +434,7 @@ const LabelDS = (props) => {
     const saveProgress = async () => {
         const sessionId = props.sessionId;
         // formulate URL if new session or updating an existing session
-        const uri = `/api/progress?id=${sessionId}&data=progress&operation=fetch`;
+        const uri = `${process.env.NEXT_PUBLIC_API_BASE_PATH}api/progress?id=${sessionId}&data=progress&operation=fetch`;
         // formulate request body
         const requestBody = {
             "settings": settings,
