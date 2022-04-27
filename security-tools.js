@@ -154,6 +154,13 @@ const SecurityTools = {
         "processingFunction": (data, startIndex) => {
             const parsedData = JSON.parse(data);
             let findingsTemp = {};
+            for (const dependency of parsedData["dependencies"]) {
+                if (dependency.hasOwnProperty("vulnerabilities")) {
+                    for (const vulnerability of dependency["vulnerabilities"]) {
+                        findingsTemp[startIndex++] = vulnerability;
+                    }
+                }
+            }
             for (const exception of parsedData["scanInfo"]["analysisExceptions"]) {
                 findingsTemp[startIndex++] = exception;
             }
