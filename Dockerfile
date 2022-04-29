@@ -4,7 +4,8 @@ FROM node:16-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY package.json package-lock.json ./ 
+COPY package.json package-lock.json ./
+COPY .env.production .
 RUN npm ci
 
 # Rebuild the source code only when needed
