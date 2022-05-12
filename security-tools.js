@@ -4,7 +4,7 @@ const scrapeDataFromUrl = async (url) => {
     if (url.includes("https://nvd.nist.gov/")) {
         // get data using nvd api
         const cveId = url.split("/").pop();
-        const queryUrl = `https://services.nvd.nist.gov/rest/json/cve/1.0/${cveId}`;
+        const queryUrl = `/nvd-endpoint/${cveId}`;
         let response = await fetch(queryUrl);
         if (response.ok) {
             response = await response.json();
@@ -22,7 +22,9 @@ const scrapeDataFromUrl = async (url) => {
         }
     } else if (url.includes("https://github.com/advisories/")) {
         // scrape github advisory data
-        let response = await fetch(url);
+        const vulnerabilityId = url.split("/").pop();
+        const queryUrl = `/github-advisories-endpoint/${vulnerabilityId}`;
+        let response = await fetch(queryUrl);
         if (response.ok) {
             response = await response.text();
             const $ = await cheerio.load(response);
@@ -38,7 +40,7 @@ const scrapeDataFromUrl = async (url) => {
             return result.join(" ");
         }
     }
-    return false;
+    return "error scraping data";
 };
 
 const scrapedDescriptionKey = "scraped_description";
