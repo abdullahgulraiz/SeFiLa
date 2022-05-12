@@ -55,7 +55,8 @@ const GenerateDS = (props) => {
     const [alert, setAlert] = useState({'variant': 'success', 'message': ""});
     const [settings, setSettings] = useState({
         nextStepButtonEnabled: true,
-        progressRetrieveButtonEnabled: true
+        progressRetrieveButtonEnabled: true,
+        scrapeUrlData: false
     });
     const tools = SecurityTools;
 
@@ -224,6 +225,25 @@ const GenerateDS = (props) => {
     const handleNextStep = async () => {
         // disable button
         setSettings({...settings, nextStepButtonEnabled: false});
+        // scrape url data if needed
+        if (settings.scrapeUrlData) {
+            for (const findingFileData of findingFilesData) {
+                const tool = SecurityTools[findingFileData.tool];
+                // skip if a scraping function isn't defined for the tool
+                if (!tool.hasOwnProperty("scrapingFunction")) continue;
+                // modify each processed finding via the scraping function to add a `scraped_description` key
+                const startIndex = findingFileData.startIndex, endIndex = findingFileData.endIndex;
+                for (let i = startIndex; i <= endIndex; i++) {
+                    // inform user of completion status
+                    const numTotalFindings = endIndex - startIndex;
+                    const numProcessedFindings = i - startIndex;
+                    const completePercentage = ((numProcessedFindings / numTotalFindings) * 100) | 0;
+                    setAlert({...alert, variant: 'info', message: `Scraping data for ${tool.name}: ${completePercentage}%`});
+                    // pass finding to scraping function for the specific tool
+                    await tool.scrapingFunction(processedFindings[i]);
+                }
+            }
+        }
         // save processed findings for the next step
         props.setAllFindings(processedFindings);
         // save meta-data for the next step
@@ -382,9 +402,17 @@ const GenerateDS = (props) => {
                     </tbody>
                 </Table>
             </Row>
-            {Object.keys(processedFindings).length > 0 && <Row className={"mt-3 mb-4 col-md-4 offset-4"}>
-                <Button variant="success" onClick={handleNextStep} disabled={!settings.nextStepButtonEnabled} >Next step</Button>
-            </Row>}
+            {Object.keys(processedFindings).length > 0 && <>
+                <Row className={"mb-4 col-md-12"}>
+                    <Form.Check
+                        className={"float-end"} type={"switch"} id={"custom-switch"} label="Scrape data from URLs"
+                        defaultChecked={false} onChange={() => {setSettings({...settings, scrapeUrlData: !settings.scrapeUrlData})}}
+                    />
+                </Row>
+                <Row className={"mb-5 col-md-4 offset-4"}>
+                    <Button variant="success" onClick={handleNextStep} disabled={!settings.nextStepButtonEnabled} >Next step</Button>
+                </Row>
+            </>}
         </>
     )
 }

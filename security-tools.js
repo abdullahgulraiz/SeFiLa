@@ -1,3 +1,50 @@
+const cheerio = require("cheerio");
+
+const scrapeDataFromUrl = async (url) => {
+    if (url.includes("https://nvd.nist.gov/")) {
+        // get data using nvd api
+        const cveId = url.split("/").pop();
+        const queryUrl = `/nvd-endpoint/${cveId}`;
+        let response = await fetch(queryUrl);
+        if (response.ok) {
+            response = await response.json();
+            let result = [], description_temp;
+            for (const cveItem of response["result"]["CVE_Items"]) {
+                description_temp = [];
+                // multiple description objects exist, so aggregate information from them
+                for(const descriptionData of cveItem["cve"]["description"]["description_data"]) {
+                    description_temp.push(descriptionData["value"]);
+                }
+                result.push(description_temp.join(". "));
+            }
+            // return aggregate of all descriptions as a single sentence
+            return result.join(". ");
+        }
+    } else if (url.includes("https://github.com/advisories/")) {
+        // scrape github advisory data
+        const vulnerabilityId = url.split("/").pop();
+        const queryUrl = `/github-advisories-endpoint/${vulnerabilityId}`;
+        let response = await fetch(queryUrl);
+        if (response.ok) {
+            response = await response.text();
+            const $ = await cheerio.load(response);
+            let result = [];
+            // get all description elements
+            const descriptionElements = await $("div.markdown-body.comment-body.p-0");
+            for (const descriptionElement of descriptionElements) {
+                const pElements = await $("p", descriptionElement);
+                for (const pElement of pElements) {
+                    result.push(await $(pElement).text());
+                }
+            }
+            return result.join(" ");
+        }
+    }
+    return "error scraping data";
+};
+
+const scrapedDescriptionKey = "scraped_description";
+
 const SecurityTools = {
     "trivy": {
         "name": "Trivy",
@@ -76,6 +123,9 @@ const SecurityTools = {
                 "endIndex": startIndex
             }
         },
+        "scrapingFunction": async (finding) => {
+            finding[scrapedDescriptionKey] = await scrapeDataFromUrl(finding["url"]);
+        }
     },
     "codeql": {
         "name": "CodeQL",
