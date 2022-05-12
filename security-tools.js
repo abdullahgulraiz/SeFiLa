@@ -4,7 +4,7 @@ const scrapeDataFromUrl = async (url) => {
     if (url.includes("https://nvd.nist.gov/")) {
         // get data using nvd api
         const cveId = url.split("/").pop();
-        const queryUrl = `/nvd-endpoint/${cveId}`;
+        const queryUrl = `${process.env.NEXT_PUBLIC_API_BASE_PATH}nvd-endpoint/${cveId}`;
         let response = await fetch(queryUrl);
         if (response.ok) {
             response = await response.json();
@@ -23,7 +23,7 @@ const scrapeDataFromUrl = async (url) => {
     } else if (url.includes("https://github.com/advisories/")) {
         // scrape github advisory data
         const vulnerabilityId = url.split("/").pop();
-        const queryUrl = `/github-advisories-endpoint/${vulnerabilityId}`;
+        const queryUrl = `${process.env.NEXT_PUBLIC_API_BASE_PATH}github-advisories-endpoint/${vulnerabilityId}`;
         let response = await fetch(queryUrl);
         if (response.ok) {
             response = await response.text();
