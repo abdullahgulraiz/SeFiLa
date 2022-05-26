@@ -14,5 +14,5 @@ build:
 
 production:
 	@echo "--- Running application in production mode ---"
-	@if [ ! -f ".env.production" ]; then echo "=== ERROR: Please add a ".env.production" file to the code directory. ==="; exit 1; fi
-	@docker run -p 3000:${PORT} --env-file ./.env.production --restart unless-stopped -d sefila:latest
+	@if [ ! -f ".env.production.local" ]; then echo "=== ERROR: Please add a ".env.production.local" file to the code directory. ==="; exit 1; fi
+	@docker run -p 3000:${PORT} --env-file ./.env.production.local --restart unless-stopped -d sefila:latest
