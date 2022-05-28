@@ -17,6 +17,7 @@ export default function Label() {
     const [allFindingsMetadata, setAllFindingsMetaData] = useState([]);
     const [sessionId, setSessionId] = useState("");
     const [restoredData, setRestoredData] = useState({savedCollections: [], currentCollection: [], settings: {}});
+    const [shouldOnlineBackup, setShouldOnlineBackup] = useState(true);
     let stepComponent;
     if (step === 1) {
         stepComponent = <GenerateDS
@@ -26,6 +27,8 @@ export default function Label() {
             sessionId={sessionId}
             setSessionId={setSessionId}
             setRestoredData={setRestoredData}
+            shouldOnlineBackup={shouldOnlineBackup}
+            setShouldOnlineBackup={setShouldOnlineBackup}
         />;
     } else if (step === 2) {
         stepComponent = <LabelDS
@@ -33,6 +36,7 @@ export default function Label() {
             allFindingsMetadata={allFindingsMetadata}
             sessionId={sessionId}
             restoredData={restoredData}
+            shouldOnlineBackup={shouldOnlineBackup}
         />;
     }
     return (
@@ -248,6 +252,13 @@ const GenerateDS = (props) => {
         props.setAllFindings(processedFindings);
         // save meta-data for the next step
         props.setAllFindingsMetaData(findingFilesData);
+        // end process if online backup not required
+        if (!props.shouldOnlineBackup) {
+            // proceed to the next step
+            props.setStep(2);
+            return;
+        }
+        // backup dataset
         // create or get existing sessionId
         let sessionId = await getSessionId();
         // form update request body
@@ -310,7 +321,7 @@ const GenerateDS = (props) => {
                 setAlert({...alert, variant: 'danger', message: `Server error while performing sanity check.`});
             }
         }
-        // enable button
+        // enable next-step button
         setSettings({...settings, nextStepButtonEnabled: true});
     };
 
@@ -405,8 +416,14 @@ const GenerateDS = (props) => {
             {Object.keys(processedFindings).length > 0 && <>
                 <Row className={"mb-4 col-md-12"}>
                     <Form.Check
-                        className={"float-end"} type={"switch"} id={"custom-switch"} label="Scrape data from URLs"
+                        className={"float-end"} type={"switch"} id={"scrape-data-from-urls"} label="Scrape data from URLs"
                         defaultChecked={false} onChange={() => {setSettings({...settings, scrapeUrlData: !settings.scrapeUrlData})}}
+                    />
+                </Row>
+                <Row className={"mb-4 col-md-12"}>
+                    <Form.Check
+                        className={"float-end"} type={"switch"} id={"backup-dataset-and-progress-online"} label="Backup dataset and progress online"
+                        defaultChecked={true} onChange={() => {props.setShouldOnlineBackup(!props.shouldOnlineBackup)}}
                     />
                 </Row>
                 <Row className={"mb-5 col-md-4 offset-4"}>
@@ -453,7 +470,9 @@ const LabelDS = (props) => {
     });
 
     // --- Function to run whenever states of specific variables change ---
-    useEffect(async () => {
+    useEffect(() => {
+        // skip if online backup disabled
+        if (!props.shouldOnlineBackup) return;
         // save progress to existing session
         saveProgress();
     }, [props.sessionId, savedCollections.length, currentCollection.length]);
@@ -676,11 +695,12 @@ const LabelDS = (props) => {
         <>
             <h1>Label Dataset</h1>
             <Row className={"mt-3"}>
-                <Col>
+                {props.shouldOnlineBackup && <Col>
                     <span>
-                        Session <b>{props.sessionId}</b>, {saveStatus.lastSaved.length > 0 && <>last saved on {saveStatus.lastSaved}</>}
+                        Session <b>{props.sessionId}</b>, {saveStatus.lastSaved.length > 0 && <>last saved
+                        on {saveStatus.lastSaved}</>}
                     </span>
-                </Col>
+                </Col>}
                 <Col>
                     <Form.Check
                         className={"float-end"} type={"switch"} id={"custom-switch"} label="Pretty code" defaultChecked={true}
