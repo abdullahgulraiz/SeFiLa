@@ -96,7 +96,7 @@ const UploadResults = (props) => {
   )
 };
 
-const EditReasons = (props) => {
+const Reasons = (props) => {
     const handleClose = () => {
         // create mapping { reasonId: { reasonObj } }
         props.setReasonsMapping(
@@ -159,6 +159,14 @@ const EditReasons = (props) => {
         // populate form
         setFormValues({id: reason.id, title: reason.title, description: reason.description});
     };
+    const handleDeleteReasonBtn = (id) => {
+        // delete object
+        deleteReason(id)
+        // change to add mode
+        setEditMode(false);
+        // clear form
+        clearForm();
+    };
     const handleFormSubmit = (e) => {
         // prevent submission to server
         e.preventDefault();
@@ -211,7 +219,12 @@ const EditReasons = (props) => {
                                                 <b>{reason.title}</b>
                                                 <button type="button"
                                                         className="btn btn-link"
-                                                        onClick={() => {handleEditReasonBtn(reason.id)}}>(Edit)
+                                                        onClick={() => {handleEditReasonBtn(reason.id)}}>Edit
+                                                </button>
+                                                <button type="button"
+                                                        className="btn btn-link"
+                                                        style={{color: "red"}}
+                                                        onClick={() => {handleDeleteReasonBtn(reason.id)}}>Delete
                                                 </button><br />
                                                 {reason.description}
                                             </li>
@@ -319,10 +332,9 @@ const ReasonResults = (props) => {
     const handleReasonsCheckboxOnChangeEvent = (e) => {
         let predictionReasonsTemp = {...predictionReasons},
             predictionReasonsList = predictionReasonsTemp[ unmatchedPredictions[counter] ];
-        // check if invalid operation
         const idValueInList = predictionReasonsList.includes(e.target.value), idCheckboxChecked = e.target.checked;
-        // if ((!idValueInList && !idCheckboxChecked) || (idValueInList && idCheckboxChecked)) return;
         if (idValueInList && !idCheckboxChecked) {
+            // remove reasonId value from list of reasons for current prediction
             predictionReasonsTemp[ unmatchedPredictions[counter] ] = predictionReasonsList.filter(id => id !== e.target.value);
         } else if (!idValueInList && idCheckboxChecked) {
             // add reasonId value to list of reasons for current prediction
@@ -332,6 +344,7 @@ const ReasonResults = (props) => {
         setPredictionReasons(predictionReasonsTemp);
     };
     const isPredictionReasonCheckboxChecked = (reasonId) => {
+        // check if reasonId value exists in list of reasons for current prediction
         return predictionReasons[unmatchedPredictions[counter]].includes(reasonId);
     };
 
@@ -452,7 +465,7 @@ const ReasonResults = (props) => {
                     </div>
                 </Row>
             </Row>
-            <EditReasons
+            <Reasons
                 show={showReasonsModal}
                 setShow={setShowReasonsModal}
                 setReasonsMapping={setAllReasons}
