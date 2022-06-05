@@ -14,9 +14,9 @@ export default function MyNavbar() {
                         <Link href="/label" passHref>
                             <Nav.Link>Label</Nav.Link>
                         </Link>
-                        {/*<Link href="/evaluate" passHref>*/}
-                        {/*    <Nav.Link>Evaluate</Nav.Link>*/}
-                        {/*</Link>*/}
+                        <Link href="/evaluate" passHref>
+                            <Nav.Link>Evaluate</Nav.Link>
+                        </Link>
                     </Nav>
                 </Navbar.Collapse>
             </Container>
