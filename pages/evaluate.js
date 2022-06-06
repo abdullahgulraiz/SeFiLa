@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useState, useEffect} from 'react';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import Form from 'react-bootstrap/Form';
@@ -7,6 +7,7 @@ import Table from 'react-bootstrap/Table';
 import Alert from 'react-bootstrap/Alert';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import Modal from 'react-bootstrap/Modal';
+import _ from "lodash";
 
 export default function Evaluate() {
     const [step, setStep] = useState(1);
@@ -97,14 +98,8 @@ const UploadResults = (props) => {
 };
 
 const Reasons = (props) => {
+    
     const handleClose = () => {
-        // create mapping { reasonId: { reasonObj } }
-        props.setReasonsMapping(
-            reasons.reduce((finalObj, reason) => {
-                finalObj[reason.id] = reason;
-                return finalObj;
-            }, {})
-        )
         props.setShow(false);
     };
     const [reasons, setReasons] = useState([
@@ -114,6 +109,19 @@ const Reasons = (props) => {
         {"id": 4, "title": "This is reason 1", "description": "This is an example of using .overflow-auto on an element with set width and height dimensions. By design, this content will vertically scroll."},
         {"id": 5, "title": "This is reason 1", "description": "This is an example of using .overflow-auto on an element with set width and height dimensions. By design, this content will vertically scroll."}
     ]);
+    
+    const updateParentReasonsData = props.setReasonsMapping;
+    useEffect(() => {
+        // update reasons data in the parent component
+        // create mapping { reasonId: { reasonObj } }
+        updateParentReasonsData(
+            reasons.reduce((finalObj, reason) => {
+                finalObj[reason.id] = reason;
+                return finalObj;
+            }, {})
+        )
+    }, [reasons, updateParentReasonsData]);
+    
     const [editMode, setEditMode] = useState(false);
     const [formValues, setFormValues] = useState({
         id: undefined,
@@ -143,6 +151,9 @@ const Reasons = (props) => {
         setReasons(editedReasons);
     };
     const deleteReason = (id) => {
+        // remove reasonId from predictions
+        props.removeReasonIdFromPredictions(id);
+        // // remove reasonId from local data
         setReasons(
             reasons.filter((reason) => reason.id !== id)
         )
@@ -347,6 +358,18 @@ const ReasonResults = (props) => {
         // check if reasonId value exists in list of reasons for current prediction
         return predictionReasons[unmatchedPredictions[counter]].includes(reasonId);
     };
+    const removeReasonIdFromPredictions = (reasonId) => {
+        if (_.isNumber(reasonId)) reasonId = reasonId.toString();
+        // copy item to locally mutate
+        let predictionReasonsTemp = {...predictionReasons};
+        // check for all predictions
+        for (const [prediction, listOfReasonIds] of Object.entries(predictionReasonsTemp)) {
+            // remove reasonId from list if present
+            predictionReasonsTemp[prediction] = listOfReasonIds.filter(id => id !== reasonId);
+        }
+        // update state variable
+        setPredictionReasons(predictionReasonsTemp);
+    };
 
     // --- Rendered component ---
     return (
@@ -469,6 +492,7 @@ const ReasonResults = (props) => {
                 show={showReasonsModal}
                 setShow={setShowReasonsModal}
                 setReasonsMapping={setAllReasons}
+                removeReasonIdFromPredictions={removeReasonIdFromPredictions}
             />
         </>
     )
