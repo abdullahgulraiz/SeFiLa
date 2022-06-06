@@ -8,6 +8,7 @@ import Alert from 'react-bootstrap/Alert';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import Modal from 'react-bootstrap/Modal';
 import _ from "lodash";
+import {DownloadJSONFile} from "../utils";
 
 export default function Evaluate() {
     const [step, setStep] = useState(1);
@@ -354,6 +355,18 @@ const ReasonResults = (props) => {
         // save results
         setPredictionReasons(predictionReasonsTemp);
     };
+    const handleDownloadEvaluation = (e) => {
+        // gather all required variables in object
+        const jsonFileObj = {
+            corpus: corpus,
+            runcase: runcase,
+            relatedLabels: relatedLabels,
+            reasons: allReasons,
+            predictionReasons: predictionReasons
+        };
+        // use helper function to download file
+        DownloadJSONFile(jsonFileObj, `sefila-evaluation`)
+    };
     const isPredictionReasonCheckboxChecked = (reasonId) => {
         // check if reasonId value exists in list of reasons for current prediction
         return predictionReasons[unmatchedPredictions[counter]].includes(reasonId);
@@ -486,6 +499,9 @@ const ReasonResults = (props) => {
                             </tbody>
                         </Table>
                     </div>
+                </Row>
+                <Row className={"mt-3 mb-3 col-md-4 offset-4"}>
+                    <Button variant="success" onClick={handleDownloadEvaluation}>Download Evaluation</Button>
                 </Row>
             </Row>
             <Reasons
