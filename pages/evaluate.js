@@ -24,6 +24,7 @@ export default function Evaluate() {
     } else if (step === 2) {
         stepComponent = <ReasonResults
             fileData={fileData}
+            setAlert={setAlert}
         />;
     }
     return (
@@ -103,25 +104,11 @@ const Reasons = (props) => {
     const handleClose = () => {
         props.setShow(false);
     };
-    const [reasons, setReasons] = useState([
-        {"id": 1, "title": "This is reason 1", "description": "This is an example of using .overflow-auto on an element with set width and height dimensions. By design, this content will vertically scroll."},
-        {"id": 2, "title": "This is reason 1", "description": "This is an example of using .overflow-auto on an element with set width and height dimensions. By design, this content will vertically scroll."},
-        {"id": 3, "title": "This is reason 1", "description": "This is an example of using .overflow-auto on an element with set width and height dimensions. By design, this content will vertically scroll."},
-        {"id": 4, "title": "This is reason 1", "description": "This is an example of using .overflow-auto on an element with set width and height dimensions. By design, this content will vertically scroll."},
-        {"id": 5, "title": "This is reason 1", "description": "This is an example of using .overflow-auto on an element with set width and height dimensions. By design, this content will vertically scroll."}
-    ]);
+    const [reasons, setReasons] = useState([]);
+    const [showLoader, setShowLoader] = useState(false);
     
     const updateParentReasonsData = props.setReasonsMapping;
-    useEffect(() => {
-        // update reasons data in the parent component
-        // create mapping { reasonId: { reasonObj } }
-        updateParentReasonsData(
-            reasons.reduce((finalObj, reason) => {
-                finalObj[reason.id] = reason;
-                return finalObj;
-            }, {})
-        )
-    }, [reasons, updateParentReasonsData]);
+    const setAlert = props.setAlert;
     
     const [editMode, setEditMode] = useState(false);
     const [formValues, setFormValues] = useState({
@@ -131,18 +118,46 @@ const Reasons = (props) => {
     });
 
     const addReason = (title, description) => {
-        // determine next id in series
-        const latestId = Math.max(...reasons.map(reason => reason.id)) + 1;
-        // save new Reason
-        setReasons([...reasons, {
-            id: latestId,
-            title: title,
-            description: description
-        }])
+        // update data on server
+        (async () => {
+            setShowLoader(true);
+            let result = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_PATH}api/reasons`, {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: title,
+                    description: description
+                })
+            });
+            setShowLoader(false);
+            if (result.ok) {
+                result = await result.json();
+                // save new Reason
+                setReasons([...reasons, result]);
+            } else {
+                setAlert({'variant': 'danger', 'message': "Failed to create new Reason on the server."});
+            }
+        })();
     };
     const editReason = (id, title, description) => {
+        // update data on server
+        (async () => {
+            setShowLoader(true);
+            let result = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_PATH}api/reasons?id=${id}`, {
+                method: "PUT",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: title,
+                    description: description
+                })
+            });
+            setShowLoader(false);
+            if (!result.ok) {
+                setAlert({'variant': 'danger', 'message': "Failed to update data on the server."});
+            }
+        })();
         // get index of reason to edit
-        const editedReasonIdx = reasons.findIndex(r => r.id === id);
+        const editedReasonIdx = reasons.findIndex(r => r._id === id);
         // create copy of all reasons
         let editedReasons = [...reasons];
         //make edits
@@ -154,10 +169,21 @@ const Reasons = (props) => {
     const deleteReason = (id) => {
         // remove reasonId from predictions
         props.removeReasonIdFromPredictions(id);
-        // // remove reasonId from local data
-        setReasons(
-            reasons.filter((reason) => reason.id !== id)
-        )
+        // update data on server
+        (async () => {
+            setShowLoader(true);
+            let result = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_PATH}api/reasons?id=${id}`, {
+                method: "DELETE",
+                headers: { 'Content-Type': 'application/json' }
+            });
+            setShowLoader(false);
+            if (result.ok) {
+                // remove reasonId from local data
+                setReasons(reasons.filter((reason) => reason._id !== id))
+            } else {
+                setAlert({'variant': 'danger', 'message': "Failed to update data on the server."});
+            }
+        })();
     };
     const clearForm = () => {
         // set variables to set form
@@ -167,9 +193,9 @@ const Reasons = (props) => {
         // change to edit mode
         setEditMode(true);
         // retrieve object to edit
-        const reason = reasons.find(r => r.id === id);
+        const reason = reasons.find(r => r._id === id);
         // populate form
-        setFormValues({id: reason.id, title: reason.title, description: reason.description});
+        setFormValues({id: reason._id, title: reason.title, description: reason.description});
     };
     const handleDeleteReasonBtn = (id) => {
         // delete object
@@ -184,6 +210,7 @@ const Reasons = (props) => {
         e.preventDefault();
         // get values to save
         const id = formValues.id, title = formValues.title, description = formValues.description;
+        if (!title || !description) return;
         switch (editMode) {
             case true:
                 // --- Edit mode ---
@@ -208,6 +235,31 @@ const Reasons = (props) => {
         setEditMode(false);
     };
 
+    // fetch all Reasons from the server
+    useEffect(() => {
+        (async () => {
+            // retrieve reasons from server
+            let result = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_PATH}api/reasons`);
+            if (result.ok) {
+                result = await result.json();
+                setReasons(result);
+            } else {
+                setAlert({'variant': 'danger', 'message': "Failed to fetch Reasons from the server."});
+            }
+        })();
+    }, []);
+
+    // update reasons data in the parent component
+    // create mapping { reasonId: { reasonObj } }
+    useEffect(() => {
+        updateParentReasonsData(
+            reasons.reduce((finalObj, reason) => {
+                finalObj[reason._id] = reason;
+                return finalObj;
+            }, {})
+        )
+    }, [reasons]);
+
     return (
         <>
             <Modal
@@ -222,26 +274,30 @@ const Reasons = (props) => {
                 <Modal.Body>
                     <Row>
                         <div className={"col-md-8"}>
-                            <h5>List of Reasons</h5>
+                            <h5>
+                                List of Reasons{' '}
+                                {showLoader && <div className="spinner-border spinner-border-sm" role="status"></div>}
+                            </h5>
                             <div className="overflow-auto">
                                 <ol>
                                     {reasons.length > 0 && reasons.map((reason) => {
                                         return (
-                                            <li key={`reason-${reason.id}`}>
+                                            <li key={`reason-${reason._id}`}>
                                                 <b>{reason.title}</b>
                                                 <button type="button"
                                                         className="btn btn-link"
-                                                        onClick={() => {handleEditReasonBtn(reason.id)}}>Edit
+                                                        onClick={() => {handleEditReasonBtn(reason._id)}}>Edit
                                                 </button>
                                                 <button type="button"
                                                         className="btn btn-link"
                                                         style={{color: "red"}}
-                                                        onClick={() => {handleDeleteReasonBtn(reason.id)}}>Delete
+                                                        onClick={() => {handleDeleteReasonBtn(reason._id)}}>Delete
                                                 </button><br />
                                                 {reason.description}
                                             </li>
                                         )
                                     })}
+                                    {reasons.length === 0 && <p className={"text-center"}>Loading...</p>}
                                 </ol>
                             </div>
                         </div>
@@ -485,7 +541,7 @@ const ReasonResults = (props) => {
                                                             type="checkbox"
                                                             id={`reason-checkbox-${reasonId}`}
                                                             label={reason.title}
-                                                            value={reason.id}
+                                                            value={reason._id}
                                                             checked={isPredictionReasonCheckboxChecked(reasonId)}
                                                             onChange={handleReasonsCheckboxOnChangeEvent}
                                                         />
@@ -509,6 +565,7 @@ const ReasonResults = (props) => {
                 setShow={setShowReasonsModal}
                 setReasonsMapping={setAllReasons}
                 removeReasonIdFromPredictions={removeReasonIdFromPredictions}
+                setAlert={props.setAlert}
             />
         </>
     )
