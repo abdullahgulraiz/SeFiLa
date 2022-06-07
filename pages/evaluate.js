@@ -299,7 +299,7 @@ const Reasons = (props) => {
                                             </li>
                                         )
                                     })}
-                                    {reasons.length === 0 && <p className={"text-center"}>Loading...</p>}
+                                    {reasons.length === 0 && <p className={"text-center"}>No reasons yet.</p>}
                                 </ol>
                             </div>
                         </div>
@@ -551,7 +551,7 @@ const ReasonResults = (props) => {
                                                                 checked={isPredictionReasonCheckboxChecked(reasonId)}
                                                                 onChange={handleReasonsCheckboxOnChangeEvent}
                                                             /></b>
-                                                            <span className={"ms-4 pt-0 mb-4"}>
+                                                            <span>
                                                                 {reason.description}
                                                             </span>
                                                         </>
