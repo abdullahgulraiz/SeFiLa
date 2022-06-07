@@ -9,7 +9,7 @@ import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import mongoose from "mongoose";
 import _ from "underscore";
 import SecurityTools from "../security-tools";
-import {ChunkString} from "../utils";
+import {ChunkString, DownloadJSONFile} from "../utils";
 
 export default function Label() {
     const [step, setStep] = useState(1);
@@ -600,15 +600,8 @@ const LabelDS = (props) => {
         });
         // add meta data and collection data to final report
         const finalDS = {"metadata": allFindingsMetaData, "collections": finalCollections};
-        // dump data into a string
-        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(finalDS))}`;
-        // create temporary link element to enable download
-        const link = document.createElement("a");
-        link.href = jsonString;
-        link.download = "labeled-dataset.json";
-        link.click();
-        // remove temporary link element
-        link.remove();
+        // use helper function to download file
+        DownloadJSONFile(finalDS, `sefila-dataset`);
     };
     const getIndexCollection = (isAllFindings) => {
         // function to prevent redundancy when accessing a certain collection and its view index

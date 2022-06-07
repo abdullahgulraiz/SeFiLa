@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 import _ from "underscore";
+import {connectToDb, getValidIdMiddlewareFn} from "./utils";
 
 // define model schemas
 const progressSchema = new mongoose.Schema({
@@ -19,11 +20,7 @@ const Progress = mongoose.models.Progress || mongoose.model('Progress', progress
 const ProgressCache = mongoose.models.ProgressCache || mongoose.model('ProgressCache', progressCacheSchema);
 
 // connect to db
-mongoose.connect(`mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@${process.env.DB_URL}?retryWrites=true&w=majority`);
-
-const validateIdFormat = (objectId) => {
-  return objectId && mongoose.Types.ObjectId.isValid(objectId);
-};
+connectToDb();
 
 const saveToCache = async (progressId, currentPosition, maxPosition, data) => {
   // fetch related record
@@ -55,22 +52,8 @@ const retrieveFromCache = async (progressId) => {
   return jsonParsed;
 };
 
-// middleware tp ensure valid Id parameter is passed in request
-const validIdMiddleware = async (req, res) => {
-  // get parameters and method
-  const { query: { id }} = req;
-  // validate request parameters
-  if (!validateIdFormat(id)) {
-    await res.status(400).json({"error": "Please provide a valid `id` parameter."});
-    return null;
-  }
-  // fetch related record
-  const progressObj = await Progress.findById(id).exec();
-  // ensure record exists
-  if (!progressObj) await res.status(404).json({"error": "Not found."});
-  // return record
-  return progressObj;
-};
+// middleware to ensure valid Id parameter is passed in request
+const validIdMiddleware = getValidIdMiddlewareFn(Progress);
 
 // request handler function
 export default async function handler(req, res) {

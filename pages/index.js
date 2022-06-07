@@ -27,11 +27,12 @@ export default function Home() {
               <p>Collect findings from different security tools in one place.</p>
             </a>
           </Link>
-
-          <a href="#" className={styles.card}>
-            <h2>Evaluate &rarr;</h2>
-            <p>Compare de-duplication results of a technique.<br />(Coming soon)</p>
-          </a>
+          <Link href={"/evaluate"}>
+            <a className={styles.card}>
+              <h2>Evaluate &rarr;</h2>
+              <p>Reason de-duplication results of a technique.</p>
+            </a>
+          </Link>
         </div>
       </main>
 
