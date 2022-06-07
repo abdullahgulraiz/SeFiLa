@@ -238,8 +238,10 @@ const Reasons = (props) => {
     // fetch all Reasons from the server
     useEffect(() => {
         (async () => {
+            setShowLoader(true);
             // retrieve reasons from server
             let result = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_PATH}api/reasons`);
+            setShowLoader(false);
             if (result.ok) {
                 result = await result.json();
                 setReasons(result);
@@ -524,7 +526,10 @@ const ReasonResults = (props) => {
                                             <>
                                                 {predictionReasons[ unmatchedPredictions[counter] ].map(reasonId => {
                                                     return (
-                                                        <li key={`reason-li-${reasonId}`}>{allReasons[reasonId].title}</li>
+                                                        <li key={`reason-li-${reasonId}`}>
+                                                            <b>{allReasons[reasonId].title}</b><br />
+                                                            <span>{allReasons[reasonId].description}</span>
+                                                        </li>
                                                     )
                                                 })}
                                                 {predictionReasons[ unmatchedPredictions[counter] ].length === 0 &&
@@ -536,15 +541,20 @@ const ReasonResults = (props) => {
                                             <Form>
                                                 {Object.entries(allReasons).map(([reasonId, reason]) => {
                                                     return (
-                                                        <Form.Check
-                                                            key={`reason-checkbox-${reasonId}`}
-                                                            type="checkbox"
-                                                            id={`reason-checkbox-${reasonId}`}
-                                                            label={reason.title}
-                                                            value={reason._id}
-                                                            checked={isPredictionReasonCheckboxChecked(reasonId)}
-                                                            onChange={handleReasonsCheckboxOnChangeEvent}
-                                                        />
+                                                        <>
+                                                            <b><Form.Check
+                                                                key={`reason-checkbox-${reasonId}`}
+                                                                type="checkbox"
+                                                                id={`reason-checkbox-${reasonId}`}
+                                                                label={reason.title}
+                                                                value={reason._id}
+                                                                checked={isPredictionReasonCheckboxChecked(reasonId)}
+                                                                onChange={handleReasonsCheckboxOnChangeEvent}
+                                                            /></b>
+                                                            <span className={"ms-4 pt-0 mb-4"}>
+                                                                {reason.description}
+                                                            </span>
+                                                        </>
                                                     )
                                                 })}
                                             </Form>
