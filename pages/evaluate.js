@@ -484,14 +484,16 @@ const ReasonResults = (props) => {
                             <tbody>
                             <tr>
                                 <td>
-                                    {Object.keys(corpus).length > 0 && unmatchedPredictions[counter].map((findingId) => {
-                                        return (
-                                            <>
-                                                <b>{findingId}: </b>
-                                                <code>{JSON.stringify(corpus[findingId])}</code>
-                                                <br /><br />
-                                            </>
-                                        )
+                                    {Object.keys(corpus).length > 0 && relatedLabels[unmatchedPredictions[counter]].map((findingIdCluster) => {
+                                        return findingIdCluster.map(findingId => {
+                                            return (
+                                                <>
+                                                    <b>{findingId}: </b>
+                                                    <code>{JSON.stringify(corpus[findingId])}</code>
+                                                    <br /><br />
+                                                </>
+                                            )
+                                        })
                                     })}
                                 </td>
                             </tr>
