@@ -364,28 +364,94 @@ const ReasonResults = (props) => {
         return finalObj;
     }, {});
 
-    // const predictionsSimilarWords = unmatchedPredictions.reduce((finalObj, prediction) => {
-    //     let wordCounts = {}, repeatedWords = [];
-    //     for (const findingId of prediction) {
-    //         const corpusText = corpus[findingId];
-    //         // trim special characters to prevent mis-identification
-    //         for (const specialChar of [" ", ",", ";"]) {
-    //             _.trim(corpusText, specialChar);
+    const [formattedCorpus, setFormattedCorpus] = useState({});
+    useEffect(() => {
+        let formattedCorpusTemp = {};
+        for (const relatedLabel of Object.values(relatedLabels)) {
+            const possibleFindingIds = [].concat(...relatedLabel);
+            let wordsInFindings = {};
+            for (const findingId of possibleFindingIds) {
+                let corpusTextWords = corpus[findingId].split(" ");
+                // trim special characters to prevent mis-identification
+                let processedWord;
+                for (const corpusTextWord of corpusTextWords) {
+                    processedWord = corpusTextWord;
+                    for (const specialChar of [" ", ",", ";", ".", "`", "'", '"', ")", "("]) {
+                        processedWord = _.trim(processedWord, specialChar);
+                    }
+                    (wordsInFindings[processedWord] instanceof Set) ? wordsInFindings[processedWord].add(findingId) : wordsInFindings[processedWord] = new Set([findingId]);
+                }
+            }
+            // keep words present in all findings
+            const predictionSet = new Set(possibleFindingIds);
+            for (const [word, findingIdSet] of Object.entries(wordsInFindings)) {
+                // skip if word is not present in all texts
+                if (!_.isEqual(findingIdSet, predictionSet)) continue;
+                // modify each instance of word for each finding text
+                for (const findingId of predictionSet) {
+                    corpus[findingId] = corpus[findingId].replaceAll(word, `<mark>${word}</mark>`);
+                }
+            }
+        }
+        setFormattedCorpus(formattedCorpusTemp);
+    }, []);
+
+    // useEffect(() => {
+    //     let formattedCorpusTemp = {};
+    //     for (const relatedLabel of Object.values(relatedLabels)) {
+    //         const possibleFindingIds = [].concat(...relatedLabel);
+    //         let wordsInFindings = {};
+    //         for (const findingId of possibleFindingIds) {
+    //             let corpusTextWords = corpus[findingId].split(" ");
+    //             // trim special characters to prevent mis-identification
+    //             let processedWord;
+    //             for (const corpusTextWord of corpusTextWords) {
+    //                 processedWord = corpusTextWord;
+    //                 for (const specialChar of [" ", ",", ";", ".", "`", "'", '"', ")", "("]) {
+    //                     processedWord = _.trim(processedWord, specialChar);
+    //                 }
+    //                 (wordsInFindings[processedWord] instanceof Set) ? wordsInFindings[processedWord].add(findingId) : wordsInFindings[processedWord] = new Set([findingId]);
+    //             }
     //         }
-    //         for (const word of corpusText.split(" ")) {
-    //             // wordCounts[word] ? ++wordCounts[word] : wordCounts[word] = 1;
-    //             _.isObject(wordCounts[word]) ? wordCounts[word][findingId] = true : wordCounts[word] = {[findingId]: true};
+    //         // keep words present in all findings
+    //         const predictionSet = new Set(possibleFindingIds);
+    //         let repeatedWords = [];
+    //         for (const [word, findingIdSet] of Object.entries(wordsInFindings)) {
+    //             // skip if word is not present in all texts
+    //             if (!_.isEqual(findingIdSet, predictionSet)) continue;
+    //             // modify each instance of word for each finding text
+    //             repeatedWords.push(word);
+    //         }
+    //         for (const findingId of possibleFindingIds) {
+    //             const findingText = corpus[findingId];
+    //             let allWordsIndexes = [], indexWordMapping = {};
+    //             for (const word of repeatedWords) {
+    //                 let wordIndexes = [];
+    //                 // find all indexes of word in text
+    //                 try {
+    //                     wordIndexes = [...findingText.matchAll(new RegExp(word, 'gi'))].map(a => a.index);
+    //                 } catch (e) {
+    //                     console.log(e);
+    //                     debugger;
+    //                 }
+    //                 // create index<-word mapping for later use
+    //                 for (const wordIndex of wordIndexes) indexWordMapping[wordIndex] = word.length;
+    //                 allWordsIndexes.push(...wordIndexes);
+    //             }
+    //             // sort list in ascending order
+    //             allWordsIndexes = allWordsIndexes.sort((a, b) => { return a - b; });
+    //             let offset = 0, splitFindingsText = [];
+    //             // [9, 56, ...] , [0, 34, ...] -> [[0, 9], [9, 18], [18, 56], ...], [[0, 9],
+    //             for (const wordIndex of allWordsIndexes) {
+    //                 splitFindingsText.push({highlight: false, text: findingText.substring(offset, wordIndex)});
+    //                 offset = wordIndex + indexWordMapping[wordIndex];
+    //                 splitFindingsText.push({highlight: true, text: findingText.substring(wordIndex, offset)});
+    //             }
+    //             formattedCorpusTemp[findingId] = splitFindingsText;
     //         }
     //     }
-    //     console.log(wordCounts);
-    //     // for (const [word, count] of Object.entries(wordCounts)) {
-    //     //     if (count >= 2) repeatedWords.push(word);
-    //     // }
-    //     finalObj[prediction] = repeatedWords;
-    //     return finalObj;
-    // }, {});
-
-    // console.log(predictionsSimilarWords);
+    //     setFormattedCorpus(formattedCorpusTemp);
+    // }, [])
 
     const [counter, setCounter] = useState(0);
     const [settings, setSettings] = useState({
@@ -489,7 +555,7 @@ const ReasonResults = (props) => {
                                             return (
                                                 <>
                                                     <b>{findingId}: </b>
-                                                    <code>{JSON.stringify(corpus[findingId])}</code>
+                                                    <span dangerouslySetInnerHTML={{__html: corpus[findingId]}} />
                                                     <br /><br />
                                                 </>
                                             )
