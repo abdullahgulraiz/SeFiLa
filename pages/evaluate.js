@@ -9,21 +9,25 @@ import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import Modal from 'react-bootstrap/Modal';
 import _ from "lodash";
 import {DownloadJSONFile} from "../utils";
+import SecurityTools from "../security-tools";
 
 export default function Evaluate() {
     const [step, setStep] = useState(1);
     const [alert, setAlert] = useState({'variant': 'success', 'message': ""});
-    const [fileData, setFileData] = useState({});
+    const [datasetFileData, setDatasetFileData] = useState({});
+    const [resultsFileData, setResultsFileData] = useState({});
     let stepComponent;
     if (step === 1) {
         stepComponent = <UploadResults
             setStep={setStep}
             setAlert={setAlert}
-            setFileData={setFileData}
+            setDatasetFileData={setDatasetFileData}
+            setResultsFileData={setResultsFileData}
         />;
     } else if (step === 2) {
         stepComponent = <ReasonResults
-            fileData={fileData}
+            datasetFileData={datasetFileData}
+            resultsFileData={resultsFileData}
             setAlert={setAlert}
         />;
     }
@@ -45,12 +49,17 @@ export default function Evaluate() {
 const UploadResults = (props) => {
     // --- State variables ---
     const [formFields, setFormFields] = useState({
-        'file': undefined
+        'resultsFile': undefined,
+        'datasetFile': undefined
+    });
+    const [isFileLoaded, setIsFileLoaded] = useState({
+        'resultsFile': false,
+        'datasetFile': false
     });
 
     // --- Functions ---
     const isFormValid = () => {
-        return formFields.file !== undefined;
+        return formFields.resultsFile !== undefined && formFields.datasetFile !== undefined;
     };
     const handleUploadForm = (event) => {
         // prevent form from submitting to server
@@ -58,9 +67,26 @@ const UploadResults = (props) => {
         // ensure a valid tool and valid file are selected before processing
         if (isFormValid()) {
             // file will be loaded in the background
-            const fileReader = new FileReader();
-            // define behavior of what's to be done once the file load
-            fileReader.onload = (e) => {
+            const datasetFileReader = new FileReader();
+            const resultsFileReader = new FileReader();
+            // define behavior of what's to be done once the files load
+            datasetFileReader.onload = (e) => {
+                // parse file data
+                const fileData = JSON.parse(e.target.result);
+                // ensure that dataset file is a valid file
+                for (const field of ["metadata", "collections"]) {
+                    // is valid
+                    if (fileData.hasOwnProperty(field) && fileData[field].length > 0) continue;
+                    // is invalid
+                    props.setAlert({variant: 'danger', message: `Field '${field}' not found in dataset file. Please ensure it is present.`});
+                    return;
+                }
+                // save file data for next step
+                props.setDatasetFileData(fileData);
+                // signal successful loading
+                setIsFileLoaded({...isFileLoaded, datasetFile: true});
+            };
+            resultsFileReader.onload = (e) => {
                 // parse file data
                 const fileData = JSON.parse(e.target.result);
                 // ensure required fields are present
@@ -70,14 +96,20 @@ const UploadResults = (props) => {
                     return;
                 }
                 // save file data for next step
-                props.setFileData(fileData);
-                // proceed to next step
-                props.setStep(2);
+                props.setResultsFileData(fileData);
+                // signal successful loading
+                setIsFileLoaded({...isFileLoaded, resultsFile: true});
             };
-            // read file from upload input
-            fileReader.readAsText(formFields.file);
+            // read file from upload inputs
+            datasetFileReader.readAsText(formFields.datasetFile);
+            resultsFileReader.readAsText(formFields.resultsFile);
         }
     };
+
+    useEffect(() => {
+        // proceed to the next step
+        if (isFileLoaded.datasetFile && isFileLoaded.resultsFile) props.setStep(2)
+    }, [isFileLoaded, props]);
 
     return (
         <Row className={"mt-3"}>
@@ -85,11 +117,17 @@ const UploadResults = (props) => {
             <Form onSubmit={handleUploadForm}>
                 <Row className="mb-3">
                     <div className={"col-md-6 offset-3"}>
-                        <Form.Group as={Col} controlId="formToolFile">
+                        <Form.Group as={Col} controlId="datasetFile">
+                            <Form.Label>Dataset file</Form.Label>
+                            <Form.Control
+                                type="file"
+                                onChange={(e) => {setFormFields({...formFields, datasetFile: e.target.files[0]})}}/>
+                        </Form.Group>
+                        <Form.Group as={Col} controlId="resultsFile" className={"mt-3"}>
                             <Form.Label>Results file</Form.Label>
                             <Form.Control
                                 type="file"
-                                onChange={(e) => {setFormFields({...formFields, 'file': e.target.files[0]})}}/>
+                                onChange={(e) => {setFormFields({...formFields, resultsFile: e.target.files[0]})}}/>
                         </Form.Group>
                         <Button type="submit" disabled={!isFormValid()} className={"float-end mt-3"}>Upload</Button>
                     </div>
@@ -341,15 +379,57 @@ const Reasons = (props) => {
             </Modal>
         </>
     );
-}
+};
+
+const FindingDetail = (props) => {
+    const handleClose = () => {
+        props.setShow(false);
+    };
+    return (
+        <>
+            <Modal
+                show={props.show}
+                onHide={handleClose}
+                keyboard={false}
+                size="lg">
+                <Modal.Header closeButton>
+                    <Modal.Title>{props.title}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Row>
+                        <Col>
+                            <b>Tool: </b>{props.tool}<br />
+                            <b>Collection: </b>{props.collection}<br />
+                            <Table className={"mt-2"} striped bordered hover responsive>
+                                <tbody>
+                                <tr>
+                                    <td>
+                                        <pre>
+                                            <code>
+                                                {JSON.stringify(props.finding, null, 2)}
+                                            </code>
+                                        </pre>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </Table>
+                        </Col>
+                    </Row>
+                </Modal.Body>
+            </Modal>
+        </>
+    );
+};
 
 const ReasonResults = (props) => {
     // --- State variables ---
-    const corpus = props.fileData.corpus;
-    const labels = props.fileData.labels;
-    const runcase = props.fileData.runcases[0];  // TODO: figure out strategy for multiple runcases
+    const corpus = props.resultsFileData.corpus;
+    const labels = props.resultsFileData.labels;
+    const runcase = props.resultsFileData.runcases[0];  // TODO: figure out strategy for multiple runcases
     const unmatchedPredictions = runcase.evaluation.unmatched_predictions;
     const unmatchedLabels = runcase.evaluation.unmatched_labels;
+    const datasetMetaData = props.datasetFileData.metadata;
+    const datasetCollections = props.datasetFileData.collections;
 
     const relatedLabels = unmatchedPredictions.reduce((finalObj, prediction) => {
         let relatedLabels = [];
@@ -363,29 +443,18 @@ const ReasonResults = (props) => {
         finalObj[prediction] = relatedLabels;
         return finalObj;
     }, {});
-
-    // const predictionsSimilarWords = unmatchedPredictions.reduce((finalObj, prediction) => {
-    //     let wordCounts = {}, repeatedWords = [];
-    //     for (const findingId of prediction) {
-    //         const corpusText = corpus[findingId];
-    //         // trim special characters to prevent mis-identification
-    //         for (const specialChar of [" ", ",", ";"]) {
-    //             _.trim(corpusText, specialChar);
-    //         }
-    //         for (const word of corpusText.split(" ")) {
-    //             // wordCounts[word] ? ++wordCounts[word] : wordCounts[word] = 1;
-    //             _.isObject(wordCounts[word]) ? wordCounts[word][findingId] = true : wordCounts[word] = {[findingId]: true};
-    //         }
-    //     }
-    //     console.log(wordCounts);
-    //     // for (const [word, count] of Object.entries(wordCounts)) {
-    //     //     if (count >= 2) repeatedWords.push(word);
-    //     // }
-    //     finalObj[prediction] = repeatedWords;
-    //     return finalObj;
-    // }, {});
-
-    // console.log(predictionsSimilarWords);
+    const toolsByFindingId = datasetMetaData.reduce((toolsByFindingIdTemp, metadata) => {
+        for (let i = metadata.startIndex; i <= metadata.endIndex; i++) {
+            toolsByFindingIdTemp[i] = metadata.tool;
+        }
+        return toolsByFindingIdTemp;
+    }, {});
+    const findingJsonByFindingId = datasetCollections.reduce((findingJsonByFindingIdTemp, collection) => {
+        for (const finding of collection.findings) {
+            findingJsonByFindingIdTemp[finding.id] = {collection: collection.name, finding: finding.finding};
+        }
+        return findingJsonByFindingIdTemp;
+    }, {});
 
     const [counter, setCounter] = useState(0);
     const [settings, setSettings] = useState({
@@ -397,6 +466,14 @@ const ReasonResults = (props) => {
         finalObj[prediction] = [];
         return finalObj;
     }, {}))
+
+    const [showFindingModal, setShowFindingModal] = useState(false);
+    const [findingModalData, setFindingModalData] = useState({
+        title: "Finding Detail",
+        collection: "Please select a finding from the Evaluation page.",
+        tool: "Please select a finding from the Evaluation page.",
+        finding: {}
+    });
 
     // --- Functions ---
     const handleReasonsCheckboxOnChangeEvent = (e) => {
@@ -441,6 +518,16 @@ const ReasonResults = (props) => {
         // update state variable
         setPredictionReasons(predictionReasonsTemp);
     };
+    const showFindingInModal = (findingId) => {
+        const findingJson = findingJsonByFindingId[findingId];
+        setFindingModalData({
+            title: `Finding ${findingId}`,
+            tool: SecurityTools[toolsByFindingId[findingId]].name,
+            collection: findingJson.collection,
+            finding: findingJson.finding
+        })
+        setShowFindingModal(true);
+    }
 
     // --- Rendered component ---
     return (
@@ -488,7 +575,12 @@ const ReasonResults = (props) => {
                                         return findingIdCluster.map(findingId => {
                                             return (
                                                 <>
-                                                    <b>{findingId}: </b>
+                                                    <b>
+                                                        <a href={"#"}
+                                                           onClick={(e) => {e.preventDefault(); showFindingInModal(findingId)}}
+                                                        >{findingId}:
+                                                        </a>{" "}
+                                                    </b>
                                                     <code>{JSON.stringify(corpus[findingId])}</code>
                                                     <br /><br />
                                                 </>
@@ -578,6 +670,14 @@ const ReasonResults = (props) => {
                 setReasonsMapping={setAllReasons}
                 removeReasonIdFromPredictions={removeReasonIdFromPredictions}
                 setAlert={props.setAlert}
+            />
+            <FindingDetail
+                show={showFindingModal}
+                setShow={setShowFindingModal}
+                title={findingModalData.title}
+                collection={findingModalData.collection}
+                tool={findingModalData.tool}
+                finding={findingModalData.finding}
             />
         </>
     )
