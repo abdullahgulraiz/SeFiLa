@@ -7,6 +7,7 @@ import Table from 'react-bootstrap/Table';
 import Alert from 'react-bootstrap/Alert';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import Modal from 'react-bootstrap/Modal';
+import Select, {} from 'react-select'
 import _ from "lodash";
 import {DownloadJSONFile} from "../utils";
 import SecurityTools from "../security-tools";
@@ -475,6 +476,10 @@ const ReasonResults = (props) => {
         finding: {}
     });
 
+    const predictionsSelectComponentOptions = unmatchedPredictions.map((prediction, idx) => {
+       return {value: idx, label: JSON.stringify(prediction)}
+    });
+
     // --- Functions ---
     const handleReasonsCheckboxOnChangeEvent = (e) => {
         let predictionReasonsTemp = {...predictionReasons},
@@ -503,7 +508,7 @@ const ReasonResults = (props) => {
         DownloadJSONFile(jsonFileObj, `sefila-evaluation`)
     };
     const handleCurrentPredictionSelectChange = (e) => {
-        setCounter(parseInt(e.target.value));
+        setCounter(e.value);
     };
     const isPredictionReasonCheckboxChecked = (reasonId) => {
         // check if reasonId value exists in list of reasons for current prediction
@@ -567,19 +572,10 @@ const ReasonResults = (props) => {
                             <tr>
                                 <th className={"break-word"}>
                                     Prediction:
-                                    <Form.Select size="sm"
-                                                 value={counter}
-                                                 onChange={handleCurrentPredictionSelectChange}
-                                                 className={"mb-3 selectlist"}>
-                                        {unmatchedPredictions.map((prediction, idx) => {
-                                            return (
-                                                <option key={"unmatched-prediction-select-"+idx}
-                                                        value={idx}>
-                                                    {JSON.stringify(prediction)}
-                                                </option>
-                                            )
-                                        })}
-                                    </Form.Select>
+                                    <Select options={predictionsSelectComponentOptions}
+                                            value={predictionsSelectComponentOptions[counter]}
+                                            onChange={handleCurrentPredictionSelectChange}
+                                            className={"mb-3"}/>
                                     Related labels:
                                     <br />
                                     <span style={{fontWeight: "normal"}}>
