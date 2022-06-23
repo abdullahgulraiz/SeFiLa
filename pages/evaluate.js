@@ -7,7 +7,7 @@ import Table from 'react-bootstrap/Table';
 import Alert from 'react-bootstrap/Alert';
 import ButtonGroup from 'react-bootstrap/ButtonGroup';
 import Modal from 'react-bootstrap/Modal';
-import Select, {} from 'react-select'
+import Select from 'react-select'
 import _ from "lodash";
 import {DownloadJSONFile} from "../utils";
 import SecurityTools from "../security-tools";
