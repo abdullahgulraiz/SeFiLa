@@ -502,6 +502,9 @@ const ReasonResults = (props) => {
         // use helper function to download file
         DownloadJSONFile(jsonFileObj, `sefila-evaluation`)
     };
+    const handleCurrentPredictionSelectChange = (e) => {
+        setCounter(parseInt(e.target.value));
+    };
     const isPredictionReasonCheckboxChecked = (reasonId) => {
         // check if reasonId value exists in list of reasons for current prediction
         return predictionReasons[unmatchedPredictions[counter]].includes(reasonId);
@@ -562,15 +565,34 @@ const ReasonResults = (props) => {
                         <Table className={"mt-3"} striped bordered hover>
                             <thead>
                             <tr>
-                                <th>
-                                    Prediction: {JSON.stringify(unmatchedPredictions[counter])}<br />
-                                    Related labels: {JSON.stringify(relatedLabels[unmatchedPredictions[counter]])}
+                                <th className={"break-word"}>
+                                    Prediction:
+                                    <Form.Select size="sm"
+                                                 value={counter}
+                                                 onChange={handleCurrentPredictionSelectChange}
+                                                 className={"mb-3 selectlist"}>
+                                        {unmatchedPredictions.map((prediction, idx) => {
+                                            return (
+                                                <option key={"unmatched-prediction-select-"+idx}
+                                                        value={idx}>
+                                                    {JSON.stringify(prediction)}
+                                                </option>
+                                            )
+                                        })}
+                                    </Form.Select>
+                                    Related labels:
+                                    <br />
+                                    <span style={{fontWeight: "normal"}}>
+                                        <code>
+                                            {JSON.stringify(relatedLabels[unmatchedPredictions[counter]])}
+                                        </code>
+                                    </span>
                                 </th>
                             </tr>
                             </thead>
                             <tbody>
                             <tr>
-                                <td>
+                                <td className={"break-word"}>
                                     {Object.keys(corpus).length > 0 && relatedLabels[unmatchedPredictions[counter]].map((findingIdCluster) => {
                                         return findingIdCluster.map(findingId => {
                                             return (

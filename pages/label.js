@@ -744,7 +744,7 @@ const LabelDS = (props) => {
                         <tbody>
                         {currentCollection.length > 0 &&
                             <tr>
-                                <td style={{"wordWrap": "break-word", "wordBreak": "break-word"}}>
+                                <td className={"break-word"}>
                                     {settings.prettyCode &&
                                         <pre>
                                             <code>
@@ -844,7 +844,7 @@ const LabelDS = (props) => {
                         <tbody>
                         {allFindings.length > 0 &&
                             <tr>
-                                <td style={{"wordWrap": "break-word", "wordBreak": "break-word"}}>
+                                <td className={"break-word"}>
                                     {settings.prettyCode &&
                                         <pre>
                                             <code>
